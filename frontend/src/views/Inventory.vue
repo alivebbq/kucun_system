@@ -1,74 +1,35 @@
 <template>
   <div class="inventory">
     <div class="toolbar">
-      <el-input
-        v-model="searchQuery"
-        placeholder="搜索商品名称或条形码"
-        class="search-input"
-        clearable
-        @input="handleSearch"
-      >
+      <el-input v-model="searchQuery" placeholder="搜索商品名称或条形码" class="search-input" clearable @input="handleSearch">
         <template #prefix>
-          <el-icon><Search /></el-icon>
+          <el-icon>
+            <Search />
+          </el-icon>
         </template>
       </el-input>
-      
+
       <el-button type="primary" @click="handleAdd">
-        <el-icon><Plus /></el-icon>
+        <el-icon>
+          <Plus />
+        </el-icon>
         添加商品
       </el-button>
     </div>
 
-    <el-table
-      :data="filteredInventory"
-      style="width: 100%"
-      v-loading="loading"
-    >
+    <el-table :data="filteredInventory" style="width: 100%" v-loading="loading">
       <el-table-column prop="barcode" label="条形码" width="150" />
       <el-table-column prop="name" label="商品名称" />
       <el-table-column prop="unit" label="单位" width="100" />
       <el-table-column prop="stock" label="库存" width="100" align="right" />
-      <el-table-column
-        prop="avg_purchase_price"
-        label="平均进价"
-        width="120"
-        align="right"
-      >
-        <template #default="{ row }">
-          ¥{{ formatNumber(row.avg_purchase_price) }}
-        </template>
-      </el-table-column>
-      <el-table-column
-        prop="avg_selling_price"
-        label="平均售价"
-        width="120"
-        align="right"
-      >
-        <template #default="{ row }">
-          ¥{{ formatNumber(row.avg_selling_price) }}
-        </template>
-      </el-table-column>
-      <el-table-column
-        prop="warning_stock"
-        label="警戒库存"
-        width="100"
-        align="right"
-      />
+      <el-table-column prop="warning_stock" label="警戒库存" width="100" align="right" />
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
           <el-button-group>
-            <el-button
-              type="primary"
-              link
-              @click="handleEdit(row)"
-            >
+            <el-button type="primary" link @click="handleEdit(row)">
               编辑
             </el-button>
-            <el-button
-              type="danger"
-              link
-              @click="handleDelete(row)"
-            >
+            <el-button type="danger" link @click="handleDelete(row)">
               删除
             </el-button>
           </el-button-group>
@@ -77,21 +38,9 @@
     </el-table>
 
     <!-- 添加/编辑商品对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="isEdit ? '编辑商品' : '添加商品'"
-      width="600px"
-      :close-on-click-modal="false"
-      :before-close="handleDialogClose"
-      destroy-on-close
-    >
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-width="100px"
-        class="form"
-      >
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑商品' : '添加商品'" width="600px" :close-on-click-modal="false"
+      :before-close="handleDialogClose" destroy-on-close>
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" class="form">
         <el-form-item label="条形码" prop="barcode">
           <el-input v-model="form.barcode" :disabled="isEdit" />
         </el-form-item>
@@ -102,12 +51,7 @@
           <el-input v-model="form.unit" />
         </el-form-item>
         <el-form-item label="警戒库存" prop="warning_stock">
-          <el-input-number
-            v-model="form.warning_stock"
-            :min="0"
-            :precision="0"
-            style="width: 100%"
-          />
+          <el-input-number v-model="form.warning_stock" :min="0" :precision="0" style="width: 100%" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -168,9 +112,9 @@ const rules: FormRules = {
 // 过滤库存列表
 const filteredInventory = computed(() => {
   if (!searchQuery.value) return inventory.value;
-  
+
   const query = searchQuery.value.toLowerCase();
-  return inventory.value.filter(item => 
+  return inventory.value.filter(item =>
     item.name.toLowerCase().includes(query) ||
     item.barcode.includes(query)
   );
@@ -241,7 +185,7 @@ const handleDelete = async (row: Inventory) => {
         type: 'warning'
       }
     );
-    
+
     await deleteInventory(row.barcode);
     ElMessage.success('删除成功');
     // 刷新库存列表
@@ -269,7 +213,7 @@ const handleDialogClose = () => {
 // 处理表单提交
 const handleSubmit = async () => {
   if (!formRef.value) return;
-  
+
   await formRef.value.validate(async (valid) => {
     if (valid) {
       try {
@@ -347,4 +291,4 @@ onUnmounted(() => {
 :deep(.el-dialog__body) {
   padding: 0;
 }
-</style> 
+</style>

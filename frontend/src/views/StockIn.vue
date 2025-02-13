@@ -31,9 +31,6 @@
             <el-descriptions-item label="当前库存">
               {{ currentProduct.stock }}
             </el-descriptions-item>
-            <el-descriptions-item label="平均进价">
-              ¥{{ formatNumber(currentProduct.avg_purchase_price) }}
-            </el-descriptions-item>
           </el-descriptions>
         </div>
 

@@ -33,9 +33,6 @@
                 {{ currentProduct.stock }}
               </span>
             </el-descriptions-item>
-            <el-descriptions-item label="平均售价">
-              ¥{{ formatNumber(currentProduct.avg_selling_price) }}
-            </el-descriptions-item>
           </el-descriptions>
         </div>
 

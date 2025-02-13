@@ -5,9 +5,6 @@ export interface Inventory {
     barcode: string;
     name: string;
     unit: string;
-    avg_purchase_price: number;
-    selling_price: number;
-    avg_selling_price: number;
     stock: number;
     warning_stock: number;
     created_at: string;
