@@ -39,13 +39,13 @@
         </template>
       </el-table-column>
       <el-table-column
-        prop="selling_price"
-        label="售价"
+        prop="avg_selling_price"
+        label="平均售价"
         width="120"
         align="right"
       >
         <template #default="{ row }">
-          ¥{{ formatNumber(row.selling_price) }}
+          ¥{{ formatNumber(row.avg_selling_price) }}
         </template>
       </el-table-column>
       <el-table-column
@@ -101,15 +101,6 @@
         <el-form-item label="单位" prop="unit">
           <el-input v-model="form.unit" />
         </el-form-item>
-        <el-form-item label="售价" prop="selling_price">
-          <el-input-number
-            v-model="form.selling_price"
-            :precision="2"
-            :step="0.1"
-            :min="0"
-            style="width: 100%"
-          />
-        </el-form-item>
         <el-form-item label="警戒库存" prop="warning_stock">
           <el-input-number
             v-model="form.warning_stock"
@@ -155,7 +146,6 @@ const form = ref({
   barcode: '',
   name: '',
   unit: '',
-  selling_price: 0,
   warning_stock: 10
 });
 
@@ -169,9 +159,6 @@ const rules: FormRules = {
   ],
   unit: [
     { required: true, message: '请输入单位', trigger: 'blur' }
-  ],
-  selling_price: [
-    { required: true, message: '请输入售价', trigger: 'blur' }
   ],
   warning_stock: [
     { required: true, message: '请输入警戒库存', trigger: 'blur' }
@@ -223,7 +210,6 @@ const handleAdd = () => {
     barcode: '',
     name: '',
     unit: '',
-    selling_price: 0,
     warning_stock: 10
   };
   formRef.value?.clearValidate();  // 清除表单验证状态
@@ -233,8 +219,13 @@ const handleAdd = () => {
 // 处理编辑商品
 const handleEdit = (row: Inventory) => {
   isEdit.value = true;
-  form.value = { ...row };
-  formRef.value?.clearValidate();  // 清除表单验证状态
+  form.value = {
+    barcode: row.barcode,
+    name: row.name,
+    unit: row.unit,
+    warning_stock: row.warning_stock
+  };
+  formRef.value?.clearValidate();
   dialogVisible.value = true;
 };
 
@@ -266,12 +257,11 @@ const handleDelete = async (row: Inventory) => {
 // 处理对话框关闭
 const handleDialogClose = () => {
   dialogVisible.value = false;
-  formRef.value?.resetFields();  // 重置表单
+  formRef.value?.resetFields();
   form.value = {
     barcode: '',
     name: '',
     unit: '',
-    selling_price: 0,
     warning_stock: 10
   };
 };

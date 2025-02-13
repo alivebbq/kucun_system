@@ -208,11 +208,11 @@ const handleSearch = async () => {
 // 加载最近入库记录
 const loadRecentRecords = async () => {
   try {
-    const transactions = await getTransactions({
+    const response = await getTransactions({
       type: 'in',  // 只获取入库记录
       limit: 10
     });
-    recentRecords.value = transactions;
+    recentRecords.value = response.items;  // 使用 response.items
   } catch (error) {
     console.error('加载入库记录失败:', error);
     ElMessage.error('加载入库记录失败');

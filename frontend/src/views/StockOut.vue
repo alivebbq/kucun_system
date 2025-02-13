@@ -41,8 +41,8 @@
                 {{ currentProduct.stock }}
               </span>
             </el-descriptions-item>
-            <el-descriptions-item label="建议售价">
-              ¥{{ formatNumber(currentProduct.selling_price) }}
+            <el-descriptions-item label="平均售价">
+              ¥{{ formatNumber(currentProduct.avg_selling_price) }}
             </el-descriptions-item>
           </el-descriptions>
         </div>
@@ -205,7 +205,8 @@ const handleSearch = async () => {
   try {
     currentProduct.value = await getInventoryByBarcode(form.value.barcode);
     if (currentProduct.value) {
-      form.value.price = currentProduct.value.selling_price;
+      // 使用平均售价作为默认售价
+      form.value.price = currentProduct.value.avg_selling_price || currentProduct.value.selling_price;
     }
   } catch (error) {
     console.error('查询商品失败:', error);
@@ -217,11 +218,11 @@ const handleSearch = async () => {
 // 加载最近出库记录
 const loadRecentRecords = async () => {
   try {
-    const transactions = await getTransactions({
+    const response = await getTransactions({
       type: 'out',  // 只获取出库记录
       limit: 10
     });
-    recentRecords.value = transactions;
+    recentRecords.value = response.items;  // 使用 response.items
   } catch (error) {
     console.error('加载出库记录失败:', error);
     ElMessage.error('加载出库记录失败');

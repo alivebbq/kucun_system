@@ -36,6 +36,12 @@ const routes = [
                 name: 'Transactions',
                 component: () => import('../views/Transactions.vue'),
                 meta: { title: '交易记录' }
+            },
+            {
+                path: 'performance',
+                name: 'Performance',
+                component: () => import('../views/Performance.vue'),
+                meta: { title: '业绩统计' }
             }
         ]
     },

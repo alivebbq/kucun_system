@@ -1,72 +1,111 @@
 <template>
   <div class="dashboard">
-    <el-row :gutter="20">
+    <!-- 顶部数据卡片 -->
+    <el-row :gutter="20" class="top-row">
       <el-col :span="8">
-        <el-card class="stat-card">
-          <template #header>
-            <div class="card-header">
-              <span>总商品数</span>
-            </div>
-          </template>
-          <div class="stat-value">
-            {{ stats.total_items }}
-            <small>种</small>
+        <el-card class="data-card">
+          <div class="card-content">
+            <div class="title">库存总值</div>
+            <div class="value">¥{{ formatNumber(stats.total_value) }}</div>
           </div>
         </el-card>
       </el-col>
-      
       <el-col :span="8">
-        <el-card class="stat-card">
-          <template #header>
-            <div class="card-header">
-              <span>库存总值</span>
-            </div>
-          </template>
-          <div class="stat-value">
-            ¥{{ formatNumber(stats.total_value) }}
+        <el-card class="data-card">
+          <div class="card-content">
+            <div class="title">今日销售额</div>
+            <div class="value warning">¥{{ formatNumber(stats.today_sales) }}</div>
           </div>
         </el-card>
       </el-col>
-      
       <el-col :span="8">
-        <el-card class="stat-card warning">
-          <template #header>
-            <div class="card-header">
-              <span>低库存商品</span>
-            </div>
-          </template>
-          <div class="stat-value">
-            {{ stats.low_stock_items }}
-            <small>种</small>
+        <el-card class="data-card">
+          <div class="card-content">
+            <div class="title">近7天销售额</div>
+            <div class="value success">¥{{ formatNumber(stats.week_sales) }}</div>
           </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-row :gutter="20" class="mt-4">
+    <!-- 主要内容区 -->
+    <el-row :gutter="20" class="main-row">
+      <!-- 左侧：热销商品 -->
       <el-col :span="12">
-        <el-card>
+        <el-card class="content-card">
           <template #header>
             <div class="card-header">
-              <span>近7天交易趋势</span>
+              <span>近7天热销产品</span>
+              <el-tag type="success" v-if="stats.hot_products.length">
+                销售额 TOP {{ stats.hot_products.length }}
+              </el-tag>
             </div>
           </template>
-          <div ref="transactionChart" style="height: 300px"></div>
+          <div v-if="stats.hot_products.length" class="hot-list">
+            <div v-for="(product, index) in stats.hot_products" :key="product.barcode" class="hot-item">
+              <span class="rank" :class="`rank-${index + 1}`">{{ index + 1 }}</span>
+              <div class="product-info">
+                <div class="name">{{ product.name }}</div>
+                <div class="details">
+                  <span class="quantity">销量: {{ product.quantity }}</span>
+                  <span class="revenue">销售额: ¥{{ formatNumber(product.revenue) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty-hot">
+            <el-empty description="暂无销售数据" />
+          </div>
         </el-card>
       </el-col>
       
+      <!-- 右侧：库存预警 -->
       <el-col :span="12">
-        <el-card>
+        <el-card class="content-card">
           <template #header>
             <div class="card-header">
               <span>库存预警</span>
+              <el-tag type="danger" v-if="stats.low_stock_items.length">
+                {{ stats.low_stock_items.length }} 个商品库存不足
+              </el-tag>
             </div>
           </template>
-          <el-table :data="lowStockItems" style="width: 100%">
-            <el-table-column prop="name" label="商品名称" />
-            <el-table-column prop="stock" label="当前库存" width="100" />
-            <el-table-column prop="warning_stock" label="警戒库存" width="100" />
+          <el-table
+            v-if="stats.low_stock_items.length"
+            :data="stats.low_stock_items"
+            style="width: 100%"
+            size="small"
+            :max-height="tableMaxHeight"
+          >
+            <el-table-column prop="name" label="商品名称" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="barcode" label="条形码" width="120" />
+            <el-table-column 
+              label="剩余库存" 
+              width="100" 
+              align="center"
+            >
+              <template #default="{ row }">
+                {{ row.stock }}{{ row.unit }}
+              </template>
+            </el-table-column>
+            <el-table-column label="库存状态" width="200" align="center">
+              <template #default="{ row }">
+                <el-progress
+                  :percentage="Math.round((row.stock / row.warning_stock) * 100)"
+                  :status="row.stock === 0 ? 'exception' : 'warning'"
+                  :stroke-width="10"
+                  :format="() => `${row.stock}/${row.warning_stock}`"
+                />
+              </template>
+            </el-table-column>
           </el-table>
+          <div v-else class="empty-warning">
+            <el-empty description="暂无库存预警">
+              <template #image>
+                <el-icon class="success-icon"><CircleCheckFilled /></el-icon>
+              </template>
+            </el-empty>
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -74,22 +113,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { getInventoryStats, getInventoryList, getTransactions } from '../api/inventory';
-import type { InventoryStats, Inventory, Transaction } from '../api/inventory';
-import * as echarts from 'echarts';
+import { ref, onMounted, computed } from 'vue';
+import { ElMessage } from 'element-plus';
+import { CircleCheckFilled } from '@element-plus/icons-vue';
+import { getInventoryStats, type HotProduct } from '../api/inventory';
 
-const stats = ref<InventoryStats>({
-  total_items: 0,
+interface LowStockItem {
+  barcode: string;
+  name: string;
+  stock: number;
+  warning_stock: number;
+  unit: string;
+}
+
+interface Stats {
+  total_value: number;
+  today_sales: number;
+  week_sales: number;
+  low_stock_items: LowStockItem[];
+  hot_products: HotProduct[];
+}
+
+const stats = ref<Stats>({
   total_value: 0,
-  low_stock_items: 0
+  today_sales: 0,
+  week_sales: 0,
+  low_stock_items: [],
+  hot_products: []
 });
 
-const lowStockItems = ref<Inventory[]>([]);
-const transactionChart = ref<HTMLElement>();
-let chart: echarts.ECharts;
-
-// 格式化数字
 const formatNumber = (num: number) => {
   return num.toLocaleString('zh-CN', {
     minimumFractionDigits: 2,
@@ -97,136 +149,185 @@ const formatNumber = (num: number) => {
   });
 };
 
-// 初始化交易趋势图
-const initTransactionChart = (transactions: Transaction[]) => {
-  if (!transactionChart.value) return;
-  
-  // 按日期分组交易数据
-  const dateMap = new Map<string, { in: number; out: number }>();
-  const now = new Date();
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
-    dateMap.set(dateStr, { in: 0, out: 0 });
-  }
-
-  transactions.forEach(t => {
-    const date = t.timestamp.split('T')[0];
-    if (dateMap.has(date)) {
-      const data = dateMap.get(date)!;
-      if (t.type === 'in') {
-        data.in += t.total;
-      } else {
-        data.out += t.total;
-      }
-    }
-  });
-
-  const dates = Array.from(dateMap.keys());
-  const inData = dates.map(d => dateMap.get(d)!.in);
-  const outData = dates.map(d => dateMap.get(d)!.out);
-
-  chart = echarts.init(transactionChart.value);
-  chart.setOption({
-    tooltip: {
-      trigger: 'axis'
-    },
-    legend: {
-      data: ['入库金额', '出库金额']
-    },
-    xAxis: {
-      type: 'category',
-      data: dates
-    },
-    yAxis: {
-      type: 'value'
-    },
-    series: [
-      {
-        name: '入库金额',
-        type: 'line',
-        data: inData
-      },
-      {
-        name: '出库金额',
-        type: 'line',
-        data: outData
-      }
-    ]
-  });
-};
-
-// 加载数据
-const loadData = async () => {
+const loadStats = async () => {
   try {
-    // 获取统计数据
-    stats.value = await getInventoryStats();
-    
-    // 获取低库存商品
-    const inventory = await getInventoryList();
-    lowStockItems.value = inventory.filter(
-      item => item.stock <= item.warning_stock
-    );
-    
-    // 获取近7天交易记录
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 7);
-    
-    const transactions = await getTransactions({
-      start_date: startDate.toISOString(),
-      end_date: endDate.toISOString()
-    });
-    
-    initTransactionChart(transactions);
+    const response = await getInventoryStats();
+    console.log('Hot products:', response.hot_products);  // 添加调试日志
+    stats.value = response;
   } catch (error) {
-    console.error('加载数据失败:', error);
+    console.error('加载统计数据失败:', error);
+    ElMessage.error('加载统计数据失败');
   }
 };
 
 onMounted(() => {
-  loadData();
-  
-  // 监听窗口大小变化，调整图表大小
-  window.addEventListener('resize', () => {
-    chart?.resize();
-  });
+  loadStats();
 });
+
+// 设置表格最大高度
+const tableMaxHeight = 'calc(100vh - 280px)';
 </script>
 
 <style scoped>
 .dashboard {
-  padding: 20px;
+  padding: 12px;
+  height: 100%;
+  background-color: #f5f7fa;
+  max-width: 1600px;
+  margin: 0 auto;
 }
 
-.stat-card {
-  height: 160px;
+.top-row {
+  margin-bottom: 12px;
 }
 
-.stat-value {
-  font-size: 36px;
-  font-weight: bold;
-  text-align: center;
-  padding: 20px 0;
+.el-row {
+  margin-left: -6px !important;
+  margin-right: -6px !important;
 }
 
-.stat-value small {
+.el-col {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+
+.data-card {
+  height: 120px;
+  background-color: #fff;
+  border-radius: 8px;
+  transition: all 0.3s;
+}
+
+.data-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+}
+
+.card-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.card-content .title {
   font-size: 16px;
-  margin-left: 5px;
+  color: #909399;
+  margin-bottom: 15px;
 }
 
-.warning .stat-value {
-  color: #f56c6c;
+.card-content .value {
+  font-size: 28px;
+  font-weight: bold;
+  color: #409EFF;
 }
 
-.mt-4 {
-  margin-top: 20px;
+.value.warning {
+  color: #E6A23C;
+}
+
+.value.success {
+  color: #67C23A;
+}
+
+.content-card {
+  height: calc(100vh - 192px);
+  background-color: #fff;
+  border-radius: 8px;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 10px;
+}
+
+.hot-list {
+  padding: 10px;
+  height: calc(100% - 55px);
+  overflow-y: auto;
+}
+
+.hot-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background-color: #f8f9fa;
+  transition: all 0.3s;
+}
+
+.hot-item:hover {
+  transform: translateX(5px);
+  background-color: #ecf5ff;
+}
+
+.rank {
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  color: white;
+  border-radius: 50%;
+  margin-right: 12px;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.rank-1 { background-color: #f56c6c; }
+.rank-2 { background-color: #e6a23c; }
+.rank-3 { background-color: #409eff; }
+.rank-4 { background-color: #67c23a; }
+.rank-5 { background-color: #909399; }
+.rank-6, .rank-7, .rank-8, .rank-9, .rank-10 { 
+  background-color: #a0cfff;
+}
+
+.product-info {
+  flex: 1;
+}
+
+.product-info .name {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.product-info .details {
+  color: #909399;
+  font-size: 12px;
+}
+
+.details .quantity {
+  margin-right: 20px;
+}
+
+.details .revenue {
+  color: #67C23A;
+  font-weight: bold;
+}
+
+.empty-warning, .empty-hot {
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.success-icon {
+  font-size: 48px;
+  color: #67C23A;
+}
+
+:deep(.el-progress-bar__innerText) {
+  color: #666;
+}
+
+:deep(.el-card__body) {
+  height: calc(100% - 55px);
+  padding: 10px;
 }
 </style> 

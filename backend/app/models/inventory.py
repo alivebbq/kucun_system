@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, CheckConstraint
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, CheckConstraint, Float
 from sqlalchemy.sql import func
 from app.db.session import Base
 
@@ -13,6 +13,7 @@ class Inventory(Base):
     selling_price = Column(Numeric(10, 2))
     stock = Column(Integer, default=0)
     warning_stock = Column(Integer, default=10)  # 警戒库存
+    avg_selling_price = Column(Float, default=0.0)  # 添加平均售价字段
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

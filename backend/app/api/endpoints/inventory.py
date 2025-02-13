@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.db.session import get_db
 from app.services.inventory import InventoryService
 from app.schemas.inventory import (
     Inventory, InventoryCreate, InventoryUpdate,
-    Transaction, StockIn, StockOut, InventoryStats
+    Transaction, StockIn, StockOut, InventoryStats,
+    TransactionResponse, PerformanceStats
 )
 
 router = APIRouter()
@@ -64,22 +65,19 @@ def stock_in(
     return db_inventory
 
 @router.post("/inventory/stock-out", response_model=Inventory)
-def stock_out(
-    stock_out: StockOut,
-    db: Session = Depends(get_db)
-):
+def stock_out(stock_out: StockOut, db: Session = Depends(get_db)):
     """商品出库"""
     db_inventory = InventoryService.stock_out(db, stock_out)
     if db_inventory is None:
         raise HTTPException(status_code=404, detail="商品不存在或库存不足")
     return db_inventory
 
-@router.get("/inventory/stats", response_model=InventoryStats)
+@router.get("/stats", response_model=InventoryStats)
 def get_inventory_stats(db: Session = Depends(get_db)):
     """获取库存统计信息"""
     return InventoryService.get_inventory_stats(db)
 
-@router.get("/transactions/", response_model=List[Transaction])
+@router.get("/transactions/", response_model=TransactionResponse)
 def list_transactions(
     barcode: Optional[str] = None,
     type: Optional[str] = None,
@@ -109,4 +107,21 @@ def delete_inventory(
     db_inventory = InventoryService.delete_inventory(db, barcode)
     if db_inventory is None:
         raise HTTPException(status_code=404, detail="商品不存在")
-    return {"message": "删除成功"} 
+    return {"message": "删除成功"}
+
+@router.get("/performance/", response_model=PerformanceStats)
+def get_performance_stats(
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    db: Session = Depends(get_db)
+):
+    """获取业绩统计"""
+    # 如果没有指定日期，默认统计当前月份
+    if not start_date:
+        start_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if not end_date:
+        next_month = start_date.replace(day=28) + timedelta(days=4)
+        end_date = next_month - timedelta(days=next_month.day)
+        end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    return InventoryService.get_performance_stats(db, start_date, end_date) 

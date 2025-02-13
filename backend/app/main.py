@@ -8,8 +8,12 @@ from app.db.session import engine, Base
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    version=settings.VERSION,
+    title="库存管理系统",
+    description="库存管理系统API文档",
+    version="1.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json"
 )
 
 # 配置CORS
@@ -22,8 +26,4 @@ app.add_middleware(
 )
 
 # 注册路由
-app.include_router(
-    inventory.router,
-    prefix=settings.API_V1_STR,
-    tags=["inventory"]
-) 
+app.include_router(inventory.router, prefix="/api/v1", tags=["inventory"]) 

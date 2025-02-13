@@ -188,9 +188,9 @@ const loadTransactions = async () => {
       params.end_date = `${searchForm.dateRange[1]}T23:59:59`;
     }
 
-    const data = await getTransactions(params);
-    transactions.value = data;
-    total.value = data.length; // TODO: 后端需要返回总数
+    const response = await getTransactions(params);
+    transactions.value = response.items;
+    total.value = response.total;
   } catch (error) {
     console.error('加载交易记录失败:', error);
     ElMessage.error('加载交易记录失败');

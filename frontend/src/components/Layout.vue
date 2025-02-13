@@ -1,6 +1,6 @@
 <template>
   <el-container class="layout-container">
-    <el-aside width="220px">
+    <el-aside width="180px">
       <el-menu
         :default-active="route.path"
         class="el-menu-vertical"
@@ -26,6 +26,10 @@
         <el-menu-item index="/transactions">
           <el-icon><List /></el-icon>
           <span>交易记录</span>
+        </el-menu-item>
+        <el-menu-item index="/performance">
+          <el-icon><TrendCharts /></el-icon>
+          <span>业绩统计</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -57,7 +61,8 @@ import {
   Box,
   Plus,
   Minus,
-  List
+  List,
+  TrendCharts
 } from '@element-plus/icons-vue';
 
 const router = useRouter();
@@ -82,7 +87,7 @@ const handleScannerConnect = () => {
 .el-aside {
   background-color: #304156;
   color: #fff;
-  width: 220px !important;  /* 固定侧边栏宽度 */
+  width: 180px !important;  /* 确保宽度固定 */
 }
 
 .el-menu {
