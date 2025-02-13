@@ -136,4 +136,29 @@ export interface HotProduct {
     name: string;
     quantity: number;
     revenue: number;
-} 
+}
+
+// 商品分析相关类型定义
+export interface PricePoint {
+    date: string;
+    cost: number;
+    price: number;
+}
+
+export interface SalesPoint {
+    date: string;
+    sales: number;
+    profit: number;
+}
+
+export interface ProductAnalysis {
+    price_trends: PricePoint[];
+    sales_analysis: SalesPoint[];
+}
+
+// 商品分析 API
+export const getProductAnalysis = (barcode: string, months: number = 1) => {
+    return api.get<ProductAnalysis>(`/analysis/${barcode}`, {
+        params: { months }
+    });
+}; 

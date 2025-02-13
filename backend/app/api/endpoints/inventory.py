@@ -8,7 +8,7 @@ from app.services.inventory import InventoryService
 from app.schemas.inventory import (
     Inventory, InventoryCreate, InventoryUpdate,
     Transaction, StockIn, StockOut, InventoryStats,
-    TransactionResponse, PerformanceStats
+    TransactionResponse, PerformanceStats, ProductAnalysis
 )
 
 router = APIRouter()
@@ -124,4 +124,17 @@ def get_performance_stats(
         end_date = next_month - timedelta(days=next_month.day)
         end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
-    return InventoryService.get_performance_stats(db, start_date, end_date) 
+    return InventoryService.get_performance_stats(db, start_date, end_date)
+
+@router.get("/analysis/{barcode}", response_model=ProductAnalysis)
+def get_product_analysis(
+    barcode: str,
+    months: int = Query(1, ge=1, le=12),  # 默认1个月，最多12个月
+    db: Session = Depends(get_db)
+):
+    """获取商品分析数据"""
+    db_inventory = InventoryService.get_inventory_by_barcode(db, barcode)
+    if not db_inventory:
+        raise HTTPException(status_code=404, detail="商品不存在")
+    
+    return InventoryService.get_product_analysis(db, barcode, months) 

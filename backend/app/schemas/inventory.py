@@ -111,4 +111,18 @@ class SalesSummary(BaseModel):
 class PerformanceStats(BaseModel):
     profit_rankings: List[ProfitRanking]
     sales_rankings: List[SalesRanking]
-    summary: SalesSummary 
+    summary: SalesSummary
+
+class PricePoint(BaseModel):
+    date: datetime
+    cost: Decimal    # 成本价
+    price: Decimal   # 售价
+
+class SalesPoint(BaseModel):
+    date: datetime
+    sales: Decimal   # 销售额
+    profit: Decimal  # 利润
+
+class ProductAnalysis(BaseModel):
+    price_trends: List[PricePoint]     # 价格趋势
+    sales_analysis: List[SalesPoint]    # 销售和利润分析 

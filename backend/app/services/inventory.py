@@ -414,4 +414,105 @@ class InventoryService:
                 "revenue": Decimal(str(item.revenue)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             }
             for item in hot_products
-        ] 
+        ]
+    
+    @staticmethod
+    def get_product_analysis(
+        db: Session,
+        barcode: str,
+        months: int
+    ) -> dict:
+        # 设置时间范围
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=months * 30)
+        
+        # 按天分组获取价格趋势
+        price_trends = []
+        sales_analysis = []
+        
+        # 计算每天的间隔
+        days_per_point = 1  # 默认每天一个点
+        if months > 1:
+            days_per_point = (months * 30) // 30  # 确保总共有30个数据点
+        
+        # 生成日期点
+        current_date = end_date
+        while current_date >= start_date:
+            point_end = current_date
+            point_start = current_date - timedelta(days=days_per_point)
+            
+            # 获取该时间段的平均进价
+            avg_cost = db.query(
+                func.avg(Transaction.price)
+            ).filter(
+                Transaction.barcode == barcode,
+                Transaction.type == 'in',
+                Transaction.timestamp.between(point_start, point_end)
+            ).scalar() or Decimal('0')
+            
+            # 获取该时间段的平均售价
+            avg_price = db.query(
+                func.avg(Transaction.price)
+            ).filter(
+                Transaction.barcode == barcode,
+                Transaction.type == 'out',
+                Transaction.timestamp.between(point_start, point_end)
+            ).scalar() or Decimal('0')
+            
+            price_trends.append({
+                "date": point_start,
+                "cost": avg_cost.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+                "price": avg_price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            })
+            
+            # 获取销售记录
+            out_records = db.query(Transaction)\
+                .filter(
+                    Transaction.barcode == barcode,
+                    Transaction.type == 'out',
+                    Transaction.timestamp.between(point_start, point_end)
+                ).all()
+            
+            # 获取进货记录用于计算成本
+            in_records = db.query(Transaction)\
+                .filter(
+                    Transaction.barcode == barcode,
+                    Transaction.type == 'in',
+                    Transaction.timestamp <= point_end
+                ).order_by(Transaction.timestamp.asc()).all()
+            
+            # 计算销售额
+            total_sales = Decimal('0')
+            total_cost = Decimal('0')
+            
+            if out_records:
+                total_sales = Decimal(str(sum(r.total for r in out_records)))
+                
+                # 计算销售成本
+                remaining_quantity = 0
+                total_out_quantity = sum(r.quantity for r in out_records)
+                
+                for in_record in in_records:
+                    if remaining_quantity >= total_out_quantity:
+                        break
+                    used_quantity = min(
+                        in_record.quantity,
+                        total_out_quantity - remaining_quantity
+                    )
+                    total_cost += used_quantity * in_record.price
+                    remaining_quantity += used_quantity
+            
+            profit = total_sales - total_cost
+            
+            sales_analysis.append({
+                "date": point_start,
+                "sales": total_sales.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+                "profit": profit.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            })
+            
+            current_date = point_start
+        
+        return {
+            "price_trends": price_trends,
+            "sales_analysis": sales_analysis
+        } 
