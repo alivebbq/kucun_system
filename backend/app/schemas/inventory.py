@@ -8,7 +8,6 @@ class InventoryBase(BaseModel):
     barcode: constr(min_length=1, max_length=13)
     name: constr(min_length=1, max_length=255)
     unit: Optional[str] = None
-    selling_price: Optional[Decimal] = None
     warning_stock: Optional[int] = 10
 
 # 创建商品请求
@@ -19,14 +18,11 @@ class InventoryCreate(InventoryBase):
 class InventoryUpdate(BaseModel):
     name: Optional[str] = None
     unit: Optional[str] = None
-    selling_price: Optional[Decimal] = None
     warning_stock: Optional[int] = None
 
 # 商品响应
 class Inventory(InventoryBase):
     id: int
-    avg_purchase_price: Decimal
-    avg_selling_price: float
     stock: int
     created_at: datetime
     updated_at: Optional[datetime]

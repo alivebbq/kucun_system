@@ -9,11 +9,8 @@ class Inventory(Base):
     barcode = Column(String(13), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=False)
     unit = Column(String(20))
-    avg_purchase_price = Column(Numeric(10, 2), nullable=False, default=0.00)
-    selling_price = Column(Numeric(10, 2))
     stock = Column(Integer, default=0)
     warning_stock = Column(Integer, default=10)  # 警戒库存
-    avg_selling_price = Column(Float, default=0.0)  # 添加平均售价字段
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

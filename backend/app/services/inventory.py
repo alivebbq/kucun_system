@@ -28,8 +28,6 @@ class InventoryService:
     def create_inventory(db: Session, inventory: InventoryCreate):
         db_inventory = Inventory(
             **inventory.model_dump(),
-            avg_purchase_price=Decimal('0.00'),
-            avg_selling_price=float(inventory.selling_price or 0),  # 初始化平均售价
             stock=0
         )
         db.add(db_inventory)
@@ -46,9 +44,6 @@ class InventoryService:
         update_data = inventory.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_inventory, field, value)
-            # 如果更新了售价，同时更新平均售价
-            if field == 'selling_price' and value is not None:
-                db_inventory.avg_selling_price = float(value)
         
         db.commit()
         db.refresh(db_inventory)
@@ -60,11 +55,8 @@ class InventoryService:
         if not db_inventory:
             return None
         
-        # 计算新的加权平均成本
-        total_value = (db_inventory.stock * db_inventory.avg_purchase_price) + (stock_in.quantity * stock_in.price)
-        new_stock = db_inventory.stock + stock_in.quantity
-        db_inventory.avg_purchase_price = total_value / new_stock if new_stock > 0 else stock_in.price
-        db_inventory.stock = new_stock
+        # 更新库存数量
+        db_inventory.stock += stock_in.quantity
         
         # 记录交易
         transaction = Transaction(
@@ -89,19 +81,6 @@ class InventoryService:
         if db_inventory.stock < stock_out.quantity:
             raise HTTPException(status_code=400, detail="Insufficient stock")
         
-        # 计算新的平均售价
-        # 如果之前没有平均售价，直接使用本次售价
-        if db_inventory.avg_selling_price == 0:
-            db_inventory.avg_selling_price = float(stock_out.price)
-        else:
-            # 计算加权平均售价
-            # 已售出商品的总价值 + 本次售出的价值
-            total_sold_value = (db_inventory.stock - db_inventory.stock) * db_inventory.avg_selling_price + stock_out.quantity * float(stock_out.price)
-            # 总售出数量
-            total_sold_quantity = stock_out.quantity
-            # 新的平均售价 = 总价值 / 总数量
-            db_inventory.avg_selling_price = total_sold_value / total_sold_quantity
-        
         # 更新库存数量
         db_inventory.stock -= stock_out.quantity
         
@@ -122,10 +101,17 @@ class InventoryService:
     
     @staticmethod
     def get_inventory_stats(db: Session) -> dict:
-        # 计算库存总值
-        total_value = db.query(
-            func.sum(Inventory.stock * Inventory.avg_purchase_price)
-        ).scalar() or Decimal('0')
+        # 计算库存总值（使用最近的进货价格）
+        inventory_values = []
+        for inv in db.query(Inventory).all():
+            last_in_price = db.query(Transaction.price)\
+                .filter(Transaction.barcode == inv.barcode, Transaction.type == 'in')\
+                .order_by(Transaction.timestamp.desc())\
+                .first()
+            if last_in_price:
+                inventory_values.append(inv.stock * last_in_price[0])
+        
+        total_value = sum(inventory_values, Decimal('0'))
         
         # 获取今日销售额（所有商品）
         today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -260,57 +246,50 @@ class InventoryService:
         start_date: datetime,
         end_date: datetime
     ) -> dict:
-        # 设置两位小数的精度
-        TWO_PLACES = Decimal('0.01')
-        
-        # 获取利润排名
+        # 修改利润计算逻辑，使用实际交易记录
         profit_rankings = []
-        profit_query = db.query(
-            Transaction.barcode,
-            Inventory.name,
-            # 出库数量
-            func.sum(case(
-                (Transaction.type == 'out', Transaction.quantity),
-                else_=0
-            )).label('out_quantity'),
-            # 出库总收入
-            func.sum(case(
-                (Transaction.type == 'out', Transaction.quantity * Transaction.price),
-                else_=0
-            )).label('total_revenue'),
-            # 平均进价（用于计算成本）
-            func.avg(case(
-                (Transaction.type == 'in', Transaction.price),
-                else_=None
-            )).label('avg_purchase_price')
-        ).join(Inventory, Transaction.barcode == Inventory.barcode)\
-        .filter(Transaction.timestamp.between(start_date, end_date))\
-        .group_by(Transaction.barcode, Inventory.name)\
-        .having(
-            func.sum(case(
-                (Transaction.type == 'out', Transaction.quantity),
-                else_=0
-            )) > 0
-        )
-
-        for barcode, name, out_quantity, total_revenue, avg_purchase_price in profit_query:
-            # 计算卖出商品的成本
-            total_cost = (Decimal(str(out_quantity)) * Decimal(str(avg_purchase_price)) if avg_purchase_price else Decimal('0')).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
-            profit = (Decimal(str(total_revenue)) - total_cost).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
-            profit_rate = (profit / total_cost * 100 if total_cost > 0 else Decimal('0')).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+        for inv in db.query(Inventory).all():
+            # 获取销售记录
+            out_records = db.query(Transaction)\
+                .filter(
+                    Transaction.barcode == inv.barcode,
+                    Transaction.type == 'out',
+                    Transaction.timestamp.between(start_date, end_date)
+                ).all()
             
-            profit_rankings.append({
-                "barcode": barcode,
-                "name": name,
-                "total_cost": total_cost,
-                "total_revenue": Decimal(str(total_revenue)).quantize(TWO_PLACES, rounding=ROUND_HALF_UP),
-                "profit": profit,
-                "profit_rate": float(profit_rate)
-            })
+            # 获取对应时期的进货记录
+            in_records = db.query(Transaction)\
+                .filter(
+                    Transaction.barcode == inv.barcode,
+                    Transaction.type == 'in',
+                    Transaction.timestamp <= end_date
+                ).order_by(Transaction.timestamp.asc()).all()
+            
+            # 计算销售收入和成本
+            total_revenue = sum(r.total for r in out_records)
+            total_cost = Decimal('0')
+            remaining_quantity = 0
+            
+            for in_record in in_records:
+                if remaining_quantity >= sum(r.quantity for r in out_records):
+                    break
+                used_quantity = min(
+                    in_record.quantity,
+                    sum(r.quantity for r in out_records) - remaining_quantity
+                )
+                total_cost += used_quantity * in_record.price
+                remaining_quantity += used_quantity
+            
+            if total_cost > 0:
+                profit_rankings.append({
+                    "barcode": inv.barcode,
+                    "name": inv.name,
+                    "total_cost": total_cost,
+                    "total_revenue": total_revenue,
+                    "profit": total_revenue - total_cost,
+                    "profit_rate": float((total_revenue - total_cost) / total_cost * 100)
+                })
         
-        # 按利润降序排序
-        profit_rankings.sort(key=lambda x: x['profit'], reverse=True)
-
         # 获取销售额排名
         sales_rankings = []
         sales_query = db.query(
@@ -346,36 +325,55 @@ class InventoryService:
             func.sum(case(
                 (Transaction.type == 'out', Transaction.total),
                 else_=0
-            )).label('total_sales'),
-            # 销售数量和对应的平均进价（用于计算销售成本）
-            func.sum(case(
-                (Transaction.type == 'out', Transaction.quantity),
-                else_=0
-            )).label('total_out_quantity'),
-            func.avg(case(
-                (Transaction.type == 'in', Transaction.price),
-                else_=None
-            )).label('avg_purchase_price')
+            )).label('total_sales')
         ).filter(Transaction.timestamp.between(start_date, end_date)).first()
 
-        total_purchase = (summary_query[0] or Decimal('0')).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
-        total_sales = (summary_query[1] or Decimal('0')).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
-        total_out_quantity = summary_query[2] or 0
-        avg_purchase_price = summary_query[3] or 0
+        total_purchase = (summary_query[0] or Decimal('0')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        total_sales = (summary_query[1] or Decimal('0')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-        # 计算销售成本（卖出商品的成本）
-        sales_cost = (Decimal(str(total_out_quantity)) * Decimal(str(avg_purchase_price))).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
-        # 计算利润（销售总额 - 销售成本）
-        total_profit = (total_sales - sales_cost).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
-        # 计算利润率（利润/销售成本）
-        profit_rate = (float(total_profit / sales_cost * 100) if sales_cost > 0 else 0)
+        # 计算总销售成本（使用先进先出原则）
+        total_sales_cost = Decimal('0')
+        for inv in db.query(Inventory).all():
+            # 获取销售记录
+            out_records = db.query(Transaction)\
+                .filter(
+                    Transaction.barcode == inv.barcode,
+                    Transaction.type == 'out',
+                    Transaction.timestamp.between(start_date, end_date)
+                ).all()
+            
+            # 获取进货记录
+            in_records = db.query(Transaction)\
+                .filter(
+                    Transaction.barcode == inv.barcode,
+                    Transaction.type == 'in',
+                    Transaction.timestamp <= end_date
+                ).order_by(Transaction.timestamp.asc()).all()
+            
+            # 计算该商品的销售成本
+            remaining_quantity = 0
+            total_out_quantity = sum(r.quantity for r in out_records)
+            
+            for in_record in in_records:
+                if remaining_quantity >= total_out_quantity:
+                    break
+                used_quantity = min(
+                    in_record.quantity,
+                    total_out_quantity - remaining_quantity
+                )
+                total_sales_cost += used_quantity * in_record.price
+                remaining_quantity += used_quantity
+
+        # 计算总利润和利润率
+        total_profit = (total_sales - total_sales_cost).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        profit_rate = (float(total_profit / total_sales_cost * 100) if total_sales_cost > 0 else 0)
 
         summary = {
-            "total_purchase": total_purchase,  # 进货总额
-            "total_sales": total_sales,      # 销售总额
-            "sales_cost": sales_cost,        # 销售成本
-            "total_profit": total_profit,    # 总利润
-            "profit_rate": profit_rate       # 利润率
+            "total_purchase": total_purchase,    # 进货总额
+            "total_sales": total_sales,         # 销售总额
+            "sales_cost": total_sales_cost,     # 销售成本（使用先进先出原则）
+            "total_profit": total_profit,       # 总利润
+            "profit_rate": profit_rate          # 利润率
         }
 
         return {
