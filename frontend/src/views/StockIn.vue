@@ -7,7 +7,7 @@
           <el-form-item>
             <el-autocomplete
               v-model="searchQuery"
-              :fetch-suggestions="searchProduct"
+              :fetch-suggestions="querySearch"
               placeholder="输入商品名称或条形码"
               :trigger-on-focus="false"
               clearable
@@ -66,21 +66,24 @@
         class="custom-form stock-form"
       >
         <el-form-item label="入库数量" prop="quantity">
-          <el-input-number 
-            v-model="form.quantity" 
-            :min="1" 
-            :precision="0"
-            style="width: 100%"
-          />
+          <el-input
+            v-model="form.quantity"
+            placeholder="请输入数量"
+            class="number-input"
+            @input="handleQuantityInput"
+          >
+            <template #suffix>{{ currentProduct?.unit }}</template>
+          </el-input>
         </el-form-item>
         <el-form-item label="单价" prop="price">
-          <el-input-number 
-            v-model="form.price" 
-            :min="0" 
-            :precision="2"
-            :step="0.01"
-            style="width: 100%"
-          />
+          <el-input
+            v-model="form.price"
+            placeholder="请输入单价"
+            class="number-input"
+            @input="handlePriceInput"
+          >
+            <template #prefix>¥</template>
+          </el-input>
         </el-form-item>
         <el-form-item>
           <el-button 
@@ -205,29 +208,27 @@ const rules: FormRules = {
     { required: true, message: '请输入条形码', trigger: 'blur' }
   ],
   quantity: [
-    { required: true, message: '请输入入库数量', trigger: 'blur' },
-    {
-      validator: (rule, value, callback) => {
+    { required: true, message: '请输入数量', trigger: 'blur' },
+    { 
+      validator: (rule: any, value: string) => {
         const num = parseInt(value);
-        if (isNaN(num) || num <= 0 || !Number.isInteger(num)) {
-          callback(new Error('请输入大于0的整数'));
-        } else {
-          callback();
+        if (isNaN(num) || num <= 0) {
+          return Promise.reject('请输入大于0的数量');
         }
+        return Promise.resolve();
       },
       trigger: 'blur'
     }
   ],
   price: [
-    { required: true, message: '请输入进货单价', trigger: 'blur' },
+    { required: true, message: '请输入单价', trigger: 'blur' },
     {
-      validator: (rule, value, callback) => {
+      validator: (rule: any, value: string) => {
         const num = parseFloat(value);
-        if (isNaN(num) || num <= 0) {
-          callback(new Error('请输入大于0的数字'));
-        } else {
-          callback();
+        if (isNaN(num) || num < 0) {
+          return Promise.reject('请输入有效的单价');
         }
+        return Promise.resolve();
       },
       trigger: 'blur'
     }
@@ -237,6 +238,9 @@ const rules: FormRules = {
 // 商品列表相关
 const productListVisible = ref(false);
 const productList = ref<Inventory[]>([]);
+
+// 搜索查询
+const searchQuery = ref('');
 
 // 格式化数字
 const formatNumber = (num: number) => {
@@ -259,67 +263,30 @@ const formatDate = (dateStr: string) => {
 };
 
 // 搜索建议
-const querySearch = async (queryString: string, cb: (arg: any[]) => void) => {
-  if (!queryString) {
-    cb([]);
-    return;
-  }
-
+const querySearch = async (queryString: string) => {
+  if (!queryString) return [];
   try {
     const response = await searchInventory(queryString);
-    cb(response);
+    return response.map(item => ({
+      value: item.barcode,
+      label: `${item.name} (${item.barcode})`,
+      ...item
+    }));
   } catch (error) {
     console.error('搜索商品失败:', error);
-    cb([]);
+    return [];
   }
 };
 
 // 选择商品
-const handleSelect = (item: Inventory) => {
-  currentProduct.value = item;
-  form.value.barcode = item.barcode;
-};
-
-// 处理搜索
-const handleSearch = async () => {
-  if (!form.value.barcode) {
-    ElMessage.warning('请输入商品条形码或名称');
+const handleSelect = (item: any) => {
+  if (!item.is_active) {
+    ElMessage.warning('该商品已禁用，无法选择');
+    searchQuery.value = '';
     return;
   }
-
-  try {
-    const response = await searchInventory(form.value.barcode);
-    if (response.length === 0) {
-      ElMessage.warning('未找到商品');
-      currentProduct.value = null;
-    } else if (response.length === 1) {
-      currentProduct.value = response[0];
-      form.value.barcode = response[0].barcode;
-    } else {
-      // 如果有多个结果，显示选择对话框
-      ElMessageBox.select({
-        title: '请选择商品',
-        message: '找到多个匹配的商品，请选择：',
-        options: response.map(item => ({
-          label: `${item.name} (${item.barcode})`,
-          value: item
-        })),
-        cancelButtonText: '取消',
-        confirmButtonText: '确定'
-      }).then(selected => {
-        if (selected) {
-          currentProduct.value = selected;
-          form.value.barcode = selected.barcode;
-        }
-      }).catch(() => {
-        // 用户取消选择
-      });
-    }
-  } catch (error) {
-    console.error('搜索商品失败:', error);
-    ElMessage.error('搜索商品失败');
-    currentProduct.value = null;
-  }
+  currentProduct.value = item;
+  form.value.barcode = item.barcode;
 };
 
 // 加载最近入库记录
@@ -338,28 +305,30 @@ const loadRecentRecords = async () => {
 
 // 处理数量输入
 const handleQuantityInput = (value: string) => {
-  // 移除非数字字符
-  const cleanValue = value.replace(/[^\d]/g, '');
-  // 允许为空，否则确保是正整数
-  form.value.quantity = cleanValue === '' ? '' : parseInt(cleanValue) || '';
+  // 只允许输入正整数
+  const newValue = value.replace(/[^\d]/g, '');
+  if (newValue === '') {
+    form.value.quantity = '';
+  } else {
+    const num = parseInt(newValue);
+    form.value.quantity = num > 0 ? num : '';
+  }
 };
 
-// 处理单价输入
+// 处理价格输入
 const handlePriceInput = (value: string) => {
-  // 移除非数字和小数点以外的字符
-  let cleanValue = value.replace(/[^\d.]/g, '');
+  // 移除非数字和小数点
+  let newValue = value.replace(/[^\d.]/g, '');
   // 确保只有一个小数点
-  const parts = cleanValue.split('.');
+  const parts = newValue.split('.');
   if (parts.length > 2) {
-    cleanValue = parts[0] + '.' + parts.slice(1).join('');
+    newValue = parts[0] + '.' + parts.slice(1).join('');
   }
   // 限制小数位数为2位
   if (parts.length === 2 && parts[1].length > 2) {
-    cleanValue = parts[0] + '.' + parts[1].slice(0, 2);
+    newValue = parts[0] + '.' + parts[1].slice(0, 2);
   }
-  // 确保是正数
-  const num = parseFloat(cleanValue);
-  form.value.price = num > 0 ? num : 0;
+  form.value.price = newValue;
 };
 
 // 提交入库
@@ -422,19 +391,6 @@ const handleProductSelect = (row: Inventory) => {
   productListVisible.value = false;
 };
 
-// 搜索商品信息
-const searchProduct = async (barcode: string) => {
-  try {
-    const response = await getInventoryByBarcode(barcode);
-    currentProduct.value = response;
-    return response;
-  } catch (error) {
-    console.error('获取商品信息失败:', error);
-    ElMessage.error('获取商品信息失败');
-    return null;
-  }
-};
-
 // 处理撤销
 const handleCancel = async (row: Transaction) => {
   try {
@@ -454,7 +410,7 @@ const handleCancel = async (row: Transaction) => {
     // 刷新记录列表和当前商品信息
     loadRecentRecords();
     if (currentProduct.value?.barcode === row.barcode) {
-      await searchProduct(row.barcode);
+      await querySearch(row.barcode);
     }
   } catch (error: any) {
     console.error('Cancel error:', error);
@@ -504,6 +460,23 @@ onMounted(() => {
   margin-left: 10px;
   color: #F56C6C;
   font-size: 14px;
+}
+
+.number-input {
+  width: 100%;
+  
+  :deep(.el-input__wrapper) {
+    padding-right: 8px;
+  }
+  
+  :deep(.el-input__prefix) {
+    color: #909399;
+    font-weight: bold;
+  }
+  
+  :deep(.el-input__suffix) {
+    color: #909399;
+  }
 }
 
 // 其他样式已在 common.scss 中定义

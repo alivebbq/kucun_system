@@ -28,9 +28,18 @@
             </el-autocomplete>
           </el-form-item>
           <el-form-item label="类型">
-            <el-select v-model="filters.type" placeholder="全部" clearable>
-              <el-option label="入库" value="in" />
-              <el-option label="出库" value="out" />
+            <el-select 
+              v-model="filters.type" 
+              placeholder="全部" 
+              clearable
+              class="type-select"
+            >
+              <el-option 
+                v-for="(label, value) in transactionTypes" 
+                :key="value" 
+                :label="label" 
+                :value="value"
+              />
             </el-select>
           </el-form-item>
           <el-form-item label="日期">
@@ -70,8 +79,11 @@
         <el-table-column prop="name" label="商品名称" min-width="150" />
         <el-table-column prop="type" label="类型" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.type === 'in' ? 'success' : 'warning'">
-              {{ row.type === 'in' ? '入库' : '出库' }}
+            <el-tag 
+              :type="row.type === 'in' ? 'success' : 'warning'"
+              effect="light"
+            >
+              {{ transactionTypes[row.type] }}
             </el-tag>
           </template>
         </el-table-column>
@@ -175,6 +187,12 @@ const dateShortcuts = [
     },
   },
 ];
+
+// 交易类型映射
+const transactionTypes = {
+  'in': '入库',
+  'out': '出库'
+};
 
 // 格式化数字
 const formatNumber = (num: number) => {
@@ -329,6 +347,10 @@ loadTransactions();
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+.type-select {
+  width: 120px;
 }
 
 // 其他样式已在 common.scss 中定义

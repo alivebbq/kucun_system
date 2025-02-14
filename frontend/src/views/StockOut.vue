@@ -66,22 +66,24 @@
         class="custom-form stock-form"
       >
         <el-form-item label="出库数量" prop="quantity">
-          <el-input-number 
-            v-model="form.quantity" 
-            :min="1" 
-            :max="currentProduct.stock"
-            :precision="0"
-            style="width: 100%"
-          />
+          <el-input
+            v-model="form.quantity"
+            placeholder="请输入数量"
+            class="number-input"
+            @input="handleQuantityInput"
+          >
+            <template #suffix>{{ currentProduct?.unit }}</template>
+          </el-input>
         </el-form-item>
         <el-form-item label="单价" prop="price">
-          <el-input-number 
-            v-model="form.price" 
-            :min="0" 
-            :precision="2"
-            :step="0.01"
-            style="width: 100%"
-          />
+          <el-input
+            v-model="form.price"
+            placeholder="请输入单价"
+            class="number-input"
+            @input="handlePriceInput"
+          >
+            <template #prefix>¥</template>
+          </el-input>
         </el-form-item>
         <el-form-item>
           <el-button 
@@ -215,31 +217,30 @@ const rules: FormRules = {
     { required: true, message: '请输入条形码', trigger: 'blur' }
   ],
   quantity: [
-    { required: true, message: '请输入出库数量', trigger: 'blur' },
+    { required: true, message: '请输入数量', trigger: 'blur' },
     {
-      validator: (rule, value, callback) => {
+      validator: (rule: any, value: string) => {
         const num = parseInt(value);
-        if (isNaN(num) || num <= 0 || !Number.isInteger(num)) {
-          callback(new Error('请输入大于0的整数'));
-        } else if (currentProduct.value && num > currentProduct.value.stock) {
-          callback(new Error('出库数量不能大于库存数量'));
-        } else {
-          callback();
+        if (isNaN(num) || num <= 0) {
+          return Promise.reject('请输入大于0的数量');
         }
+        if (num > currentProduct.value?.stock) {
+          return Promise.reject(`出库数量不能超过当前库存(${currentProduct.value.stock})`);
+        }
+        return Promise.resolve();
       },
       trigger: 'blur'
     }
   ],
   price: [
-    { required: true, message: '请输入销售单价', trigger: 'blur' },
+    { required: true, message: '请输入单价', trigger: 'blur' },
     {
-      validator: (rule, value, callback) => {
+      validator: (rule: any, value: string) => {
         const num = parseFloat(value);
-        if (isNaN(num) || num <= 0) {
-          callback(new Error('请输入大于0的数字'));
-        } else {
-          callback();
+        if (isNaN(num) || num < 0) {
+          return Promise.reject('请输入有效的单价');
         }
+        return Promise.resolve();
       },
       trigger: 'blur'
     }
@@ -368,28 +369,35 @@ const loadRecentRecords = async () => {
 
 // 处理数量输入
 const handleQuantityInput = (value: string) => {
-  // 移除非数字字符
-  const cleanValue = value.replace(/[^\d]/g, '');
-  // 允许为空，否则确保是正整数
-  form.value.quantity = cleanValue === '' ? '' : parseInt(cleanValue) || '';
+  // 只允许输入正整数
+  const newValue = value.replace(/[^\d]/g, '');
+  if (newValue === '') {
+    form.value.quantity = '';
+  } else {
+    const num = parseInt(newValue);
+    // 限制最大数量为当前库存
+    if (num > currentProduct.value?.stock) {
+      form.value.quantity = currentProduct.value.stock;
+    } else {
+      form.value.quantity = num > 0 ? num : '';
+    }
+  }
 };
 
 // 处理单价输入
 const handlePriceInput = (value: string) => {
-  // 移除非数字和小数点以外的字符
-  let cleanValue = value.replace(/[^\d.]/g, '');
+  // 移除非数字和小数点
+  let newValue = value.replace(/[^\d.]/g, '');
   // 确保只有一个小数点
-  const parts = cleanValue.split('.');
+  const parts = newValue.split('.');
   if (parts.length > 2) {
-    cleanValue = parts[0] + '.' + parts.slice(1).join('');
+    newValue = parts[0] + '.' + parts.slice(1).join('');
   }
   // 限制小数位数为2位
   if (parts.length === 2 && parts[1].length > 2) {
-    cleanValue = parts[0] + '.' + parts[1].slice(0, 2);
+    newValue = parts[0] + '.' + parts[1].slice(0, 2);
   }
-  // 确保是正数
-  const num = parseFloat(cleanValue);
-  form.value.price = num > 0 ? num : 0;
+  form.value.price = newValue;
 };
 
 // 提交出库
@@ -532,6 +540,23 @@ loadRecentRecords();
   margin-left: 10px;
   color: #F56C6C;
   font-size: 14px;
+}
+
+.number-input {
+  width: 100%;
+  
+  :deep(.el-input__wrapper) {
+    padding-right: 8px;
+  }
+  
+  :deep(.el-input__prefix) {
+    color: #909399;
+    font-weight: bold;
+  }
+  
+  :deep(.el-input__suffix) {
+    color: #909399;
+  }
 }
 
 // 其他样式已在 common.scss 中定义
