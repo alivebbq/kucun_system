@@ -34,27 +34,35 @@ class UserService:
     
     @staticmethod
     def create_user(db: Session, user: UserCreate, store_id: int) -> User:
-        hashed_password = pwd_context.hash(user.password)
-        permissions_str = ','.join(user.permissions) if user.permissions else ''
-        db_user = User(
-            username=user.username,
-            name=user.name,
-            hashed_password=hashed_password,
-            store_id=store_id,
-            permissions=permissions_str,
-            is_active=True
-        )
-        db.add(db_user)
-        db.commit()
-        db.refresh(db_user)
-        
-        # 转换权限字符串为列表
-        if db_user.permissions:
-            db_user.permissions = db_user.permissions.split(',')
-        else:
-            db_user.permissions = []
-        
-        return db_user
+        try:
+            hashed_password = pwd_context.hash(user.password)
+            permissions_str = ','.join(user.permissions) if user.permissions else ''
+            
+            db_user = User(
+                username=user.username,
+                name=user.name,
+                hashed_password=hashed_password,
+                store_id=store_id,
+                permissions=permissions_str,
+                is_owner=False,  # 确保新创建的用户不是店主
+                is_active=True
+            )
+            
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+            
+            # 转换权限字符串为列表
+            if db_user.permissions:
+                db_user.permissions = db_user.permissions.split(',')
+            else:
+                db_user.permissions = []
+            
+            return db_user
+        except Exception as e:
+            db.rollback()
+            print(f"Error in create_user: {str(e)}")
+            raise
     
     @staticmethod
     def update_user(db: Session, user_id: int, user_update: UserUpdate) -> Optional[User]:
@@ -114,11 +122,12 @@ class UserService:
         # 更新最后登录时间
         user.last_login = datetime.now()
         
-        # 转换权限字符串为列表
-        if user.permissions:
-            user.permissions = user.permissions.split(',')
+        # 店主账号不需要处理权限字段
+        if not user.is_owner:
+            # 只对非店主账号转换权限字符串为列表
+            user.permissions = user.permissions.split(',') if user.permissions else []
         else:
-            user.permissions = []
+            user.permissions = []  # 店主账号权限列表为空
         
         db.commit()
         return user 

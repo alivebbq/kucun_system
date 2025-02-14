@@ -24,8 +24,8 @@ class User(Base):
     username = Column(String(50), unique=True, index=True)
     name = Column(String(50), nullable=True)
     hashed_password = Column(String(100))
-    is_owner = Column(Boolean, default=False)  # 是否是店主
-    is_active = Column(Boolean, default=True)  # 添加这个字段
+    is_owner = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
     store_id = Column(Integer, ForeignKey("stores.id"))
     permissions = Column(String(200), default="")  # 存储为逗号分隔的字符串
     created_at = Column(DateTime, default=datetime.utcnow)

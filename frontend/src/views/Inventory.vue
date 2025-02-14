@@ -23,14 +23,25 @@
       <el-table-column prop="unit" label="单位" width="100" />
       <el-table-column prop="stock" label="库存" width="100" align="right" />
       <el-table-column prop="warning_stock" label="警戒库存" width="100" align="right" />
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column prop="is_active" label="状态" width="100">
+        <template #default="{ row }">
+          <el-tag :type="row.is_active ? 'success' : 'danger'">
+            {{ row.is_active ? '启用' : '禁用' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <el-button-group>
             <el-button type="primary" link @click="handleEdit(row)">
               编辑
             </el-button>
-            <el-button type="danger" link @click="handleDelete(row)">
-              删除
+            <el-button 
+              :type="row.is_active ? 'danger' : 'success'" 
+              link 
+              @click="handleToggleStatus(row)"
+            >
+              {{ row.is_active ? '禁用' : '启用' }}
             </el-button>
           </el-button-group>
         </template>
@@ -76,6 +87,7 @@ import {
   createInventory,
   updateInventory,
   deleteInventory,
+  toggleInventoryStatus,
   type Inventory
 } from '../api/inventory';
 
@@ -232,6 +244,31 @@ const handleSubmit = async () => {
       }
     }
   });
+};
+
+// 处理切换状态
+const handleToggleStatus = async (row: Inventory) => {
+  try {
+    const action = row.is_active ? '禁用' : '启用';
+    await ElMessageBox.confirm(
+      `确定要${action}商品"${row.name}"吗？`,
+      '提示',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: row.is_active ? 'warning' : 'info'
+      }
+    );
+
+    await toggleInventoryStatus(row.barcode);
+    ElMessage.success(`${action}成功`);
+    await loadInventory();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('操作失败:', error);
+      ElMessage.error('操作失败');
+    }
+  }
 };
 
 onMounted(() => {

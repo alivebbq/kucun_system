@@ -118,6 +118,12 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
     const userStore = useUserStore();
 
+    // 设置页面标题
+    const baseTitle = '库存管理系统';
+    document.title = to.meta.title
+        ? `${to.meta.title} - ${baseTitle}`
+        : baseTitle;
+
     // 检查路由是否需要认证
     if (to.meta.requiresAuth && !userStore.isLoggedIn) {
         next('/login');

@@ -147,14 +147,24 @@ def get_performance_stats(
 def get_product_analysis(
     barcode: str,
     months: int = Query(1, ge=1, le=12),  # 默认1个月，最多12个月
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
 ):
     """获取商品分析数据"""
-    db_inventory = InventoryService.get_inventory_by_barcode(db, barcode)
+    db_inventory = InventoryService.get_inventory_by_barcode(
+        db, 
+        barcode, 
+        current_user.store_id
+    )
     if not db_inventory:
         raise HTTPException(status_code=404, detail="商品不存在")
     
-    return InventoryService.get_product_analysis(db, barcode, months)
+    return InventoryService.get_product_analysis(
+        db, 
+        barcode, 
+        months,
+        current_user.store_id
+    )
 
 @router.get("/statistics")
 async def get_statistics(
@@ -179,4 +189,16 @@ async def get_statistics(
         raise HTTPException(
             status_code=500,
             detail=f"Error getting statistics: {str(e)}"
-        ) 
+        )
+
+@router.put("/inventory/{barcode}/toggle", response_model=Inventory)
+def toggle_inventory_status(
+    barcode: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """切换商品状态"""
+    db_inventory = InventoryService.toggle_status(db, barcode, current_user.store_id)
+    if not db_inventory:
+        raise HTTPException(status_code=404, detail="商品不存在")
+    return db_inventory 

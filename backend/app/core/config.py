@@ -26,5 +26,7 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        # 允许从环境变量加载额外的配置
+        extra = "ignore"  # 添加这行来忽略额外的配置项
 
 settings = Settings() 

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import type { User } from '../api/user';
+import api from '../api/config';
 
 interface UserState {
     token: string | null;
@@ -9,7 +10,7 @@ interface UserState {
 export const useUserStore = defineStore('user', {
     state: (): UserState => ({
         token: localStorage.getItem('token'),
-        user: null
+        user: JSON.parse(localStorage.getItem('user') || 'null')
     }),
 
     getters: {
@@ -17,7 +18,7 @@ export const useUserStore = defineStore('user', {
         isOwner: (state) => state.user?.is_owner || false,
         hasPermission: (state) => (permission: string) => {
             if (state.user?.is_owner) return true;
-            return state.user?.permissions.includes(permission) || false;
+            return state.user?.permissions?.includes(permission) || false;
         }
     },
 
@@ -29,12 +30,25 @@ export const useUserStore = defineStore('user', {
 
         setUser(user: User) {
             this.user = user;
+            localStorage.setItem('user', JSON.stringify(user));
         },
 
         logout() {
             this.token = null;
             this.user = null;
             localStorage.removeItem('token');
+            localStorage.removeItem('user');
+        },
+
+        async restoreUser() {
+            if (this.token && !this.user) {
+                try {
+                    const response = await api.get('/api/v1/auth/users/me');
+                    this.setUser(response);
+                } catch (error) {
+                    this.logout();
+                }
+            }
         }
     }
 }); 

@@ -1,5 +1,15 @@
 <script setup lang="ts">
 import 'element-plus/dist/index.css';
+import { onMounted } from 'vue';
+import { useUserStore } from './stores/user';
+
+const userStore = useUserStore();
+
+onMounted(async () => {
+  if (userStore.token && !userStore.user) {
+    await userStore.restoreUser();
+  }
+});
 </script>
 
 <template>

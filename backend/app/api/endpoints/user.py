@@ -56,26 +56,56 @@ def list_users(
 def create_user(
     user: UserCreate,
     db: Session = Depends(get_db),
-    current_user: User = Security(get_current_active_user, scopes=["owner"])
+    current_user: User = Depends(get_current_active_user)
 ):
     """创建新员工（仅店主可用）"""
+    # 检查是否是店主
+    if not current_user.is_owner:
+        raise HTTPException(
+            status_code=403,
+            detail="只有店主可以创建新用户"
+        )
+
+    # 检查用户名是否已存在
     if UserService.get_user_by_username(db, user.username):
-        raise HTTPException(status_code=400, detail="用户名已存在")
-    return UserService.create_user(db, user, current_user.store_id)
+        raise HTTPException(
+            status_code=400,
+            detail="用户名已存在"
+        )
+
+    try:
+        # 创建新用户
+        return UserService.create_user(db, user, current_user.store_id)
+    except Exception as e:
+        print(f"Error creating user: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"创建用户失败: {str(e)}"
+        )
 
 @router.put("/users/{user_id}", response_model=User)
 def update_user(
     user_id: int,
     user_update: UserUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Security(get_current_active_user, scopes=["owner"])
+    current_user: User = Depends(get_current_active_user)
 ):
     """更新员工信息（仅店主可用）"""
+    if not current_user.is_owner:
+        raise HTTPException(
+            status_code=403,
+            detail="只有店主可以修改用户信息"
+        )
+    
     db_user = UserService.get_user(db, user_id)
     if not db_user or db_user.store_id != current_user.store_id:
         raise HTTPException(status_code=404, detail="用户不存在")
+    
+    # 不允许修改店主账号
     if db_user.is_owner:
         raise HTTPException(status_code=403, detail="不能修改店主账号")
+    
     return UserService.update_user(db, user_id, user_update)
 
 @router.delete("/users/{user_id}")

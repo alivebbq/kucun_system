@@ -48,7 +48,7 @@ def init_db():
                 is_owner=True,
                 is_active=True,
                 store_id=store.id,
-                permissions="owner",
+                permissions="",  # 店主不需要额外权限，直接设置为空字符串
                 created_at=datetime.now()
             )
             db.add(owner)

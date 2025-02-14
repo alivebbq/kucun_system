@@ -24,6 +24,7 @@ class InventoryUpdate(BaseModel):
 class Inventory(InventoryBase):
     id: int
     stock: int
+    is_active: bool = True
     created_at: datetime
     updated_at: Optional[datetime]
 

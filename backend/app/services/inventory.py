@@ -60,9 +60,12 @@ class InventoryService:
     
     @staticmethod
     def stock_in(db: Session, stock_in: StockIn, store_id: int):
+        """商品入库"""
         db_inventory = InventoryService.get_inventory_by_barcode(db, stock_in.barcode, store_id)
         if not db_inventory:
-            return None
+            raise HTTPException(status_code=404, detail="商品不存在")
+        if not db_inventory.is_active:
+            raise HTTPException(status_code=400, detail="商品已禁用，无法入库")
         
         # 更新库存数量
         db_inventory.stock += stock_in.quantity
@@ -84,9 +87,12 @@ class InventoryService:
     
     @staticmethod
     def stock_out(db: Session, stock_out: StockOut, store_id: int):
+        """商品出库"""
         db_inventory = InventoryService.get_inventory_by_barcode(db, stock_out.barcode, store_id)
         if not db_inventory:
-            raise HTTPException(status_code=404, detail="Inventory not found")
+            raise HTTPException(status_code=404, detail="商品不存在")
+        if not db_inventory.is_active:
+            raise HTTPException(status_code=400, detail="商品已禁用，无法出库")
         
         if db_inventory.stock < stock_out.quantity:
             raise HTTPException(status_code=400, detail="Insufficient stock")
@@ -440,13 +446,14 @@ class InventoryService:
     def get_product_analysis(
         db: Session,
         barcode: str,
-        months: int
+        months: int,
+        store_id: int
     ) -> dict:
         # 设置时间范围
         end_date = datetime.now()
         start_date = end_date - timedelta(days=months * 30)
         
-        # 按天分组获取价格趋势
+        # 修改所有查询，添加 store_id 过滤
         price_trends = []
         sales_analysis = []
         
@@ -467,6 +474,7 @@ class InventoryService:
             ).filter(
                 Transaction.barcode == barcode,
                 Transaction.type == 'in',
+                Transaction.store_id == store_id,
                 Transaction.timestamp.between(point_start, point_end)
             ).scalar() or Decimal('0')
             
@@ -476,6 +484,7 @@ class InventoryService:
             ).filter(
                 Transaction.barcode == barcode,
                 Transaction.type == 'out',
+                Transaction.store_id == store_id,
                 Transaction.timestamp.between(point_start, point_end)
             ).scalar() or Decimal('0')
             
@@ -490,6 +499,7 @@ class InventoryService:
                 .filter(
                     Transaction.barcode == barcode,
                     Transaction.type == 'out',
+                    Transaction.store_id == store_id,
                     Transaction.timestamp.between(point_start, point_end)
                 ).all()
             
@@ -498,6 +508,7 @@ class InventoryService:
                 .filter(
                     Transaction.barcode == barcode,
                     Transaction.type == 'in',
+                    Transaction.store_id == store_id,
                     Transaction.timestamp <= point_end
                 ).order_by(Transaction.timestamp.asc()).all()
             
@@ -615,3 +626,15 @@ class InventoryService:
         except Exception as e:
             logger.error(f"Error getting statistics: {str(e)}")
             raise 
+
+    @staticmethod
+    def toggle_status(db: Session, barcode: str, store_id: int) -> Optional[Inventory]:
+        """切换商品状态"""
+        db_inventory = InventoryService.get_inventory_by_barcode(db, barcode, store_id)
+        if not db_inventory:
+            return None
+        
+        db_inventory.is_active = not db_inventory.is_active
+        db.commit()
+        db.refresh(db_inventory)
+        return db_inventory 

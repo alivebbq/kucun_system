@@ -7,6 +7,7 @@ export interface Inventory {
     unit: string;
     stock: number;
     warning_stock: number;
+    is_active: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -161,4 +162,9 @@ export const getProductAnalysis = (barcode: string, months: number = 1) => {
     return api.get<ProductAnalysis>(`/api/v1/analysis/${barcode}`, {
         params: { months }
     });
+};
+
+// 切换商品状态
+export const toggleInventoryStatus = (barcode: string) => {
+    return api.put<Inventory>(`/api/v1/inventory/${barcode}/toggle`);
 }; 

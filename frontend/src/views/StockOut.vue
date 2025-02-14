@@ -37,17 +37,20 @@
         </div>
 
         <el-form-item label="出库数量" prop="quantity" v-if="currentProduct">
-          <el-input v-model="form.quantity" placeholder="请输入出库数量" type="number" @input="handleQuantityInput" />
+          <el-input v-model="form.quantity" placeholder="请输入出库数量" type="number" @input="handleQuantityInput" :disabled="!currentProduct.is_active" />
         </el-form-item>
 
         <el-form-item label="销售单价" prop="price" v-if="currentProduct">
-          <el-input v-model="form.price" placeholder="请输入销售单价" type="number" @input="handlePriceInput" />
+          <el-input v-model="form.price" placeholder="请输入销售单价" type="number" @input="handlePriceInput" :disabled="!currentProduct.is_active" />
         </el-form-item>
 
         <el-form-item v-if="currentProduct">
-          <el-button type="primary" :loading="loading" @click="handleSubmit">
+          <el-button type="primary" :loading="loading" @click="handleSubmit" :disabled="!currentProduct.is_active">
             确认出库
           </el-button>
+          <span v-if="!currentProduct.is_active" class="disabled-tip">
+            该商品已禁用，无法出库
+          </span>
         </el-form-item>
       </el-form>
     </el-card>
@@ -347,5 +350,11 @@ loadRecentRecords();
   /* 允许表格内容滚动 */
   min-height: 300px;
   /* 设置最小高度 */
+}
+
+.disabled-tip {
+  margin-left: 10px;
+  color: #f56c6c;
+  font-size: 14px;
 }
 </style>
