@@ -16,13 +16,25 @@
       <!-- 搜索条件 -->
       <div class="search-form">
         <el-form :inline="true" :model="searchForm">
-          <el-form-item label="商品条码">
-            <el-input
+          <el-form-item label="商品" prop="barcode">
+            <el-autocomplete
               v-model="searchForm.barcode"
-              placeholder="请输入商品条码"
-              clearable
-              @keyup.enter="handleSearch"
-            />
+              :fetch-suggestions="querySearch"
+              placeholder="请输入商品条形码或名称"
+              :trigger-on-focus="false"
+              @select="handleSelect"
+              class="search-input"
+            >
+              <template #default="{ item }">
+                <div class="search-item">
+                  <div class="name">{{ item.name }}</div>
+                  <div class="info">
+                    <span>条码: {{ item.barcode }}</span>
+                    <span>库存: {{ item.stock }}{{ item.unit }}</span>
+                  </div>
+                </div>
+              </template>
+            </el-autocomplete>
           </el-form-item>
           
           <el-form-item label="交易类型">
@@ -112,6 +124,11 @@
             {{ formatDate(row.timestamp) }}
           </template>
         </el-table-column>
+        <el-table-column
+          prop="operator_name"
+          label="操作人"
+          width="120"
+        />
       </el-table>
 
       <!-- 分页 -->
@@ -134,7 +151,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Search, Refresh, Download } from '@element-plus/icons-vue';
-import { getTransactions, type Transaction } from '../api/inventory';
+import { getTransactions, type Transaction, searchInventory } from '../api/inventory';
 
 const loading = ref(false);
 const transactions = ref<Transaction[]>([]);
@@ -232,6 +249,28 @@ const handleSizeChange = (size: number) => {
   loadTransactions();
 };
 
+// 搜索建议
+const querySearch = async (queryString: string, cb: (arg: any[]) => void) => {
+  if (!queryString) {
+    cb([]);
+    return;
+  }
+
+  try {
+    const response = await searchInventory(queryString);
+    cb(response);
+  } catch (error) {
+    console.error('搜索商品失败:', error);
+    cb([]);
+  }
+};
+
+// 选择商品
+const handleSelect = (item: Inventory) => {
+  searchForm.barcode = item.barcode;
+  handleSearch();  // 自动触发搜索
+};
+
 onMounted(() => {
   loadTransactions();
 });
@@ -276,5 +315,24 @@ onMounted(() => {
   width: 100%;
   text-align: center;
   margin: 0;
+}
+
+.search-item {
+  padding: 4px 0;
+}
+
+.search-item .name {
+  font-weight: bold;
+}
+
+.search-item .info {
+  font-size: 12px;
+  color: #666;
+  display: flex;
+  gap: 10px;
+}
+
+:deep(.el-autocomplete) {
+  width: 100%;
 }
 </style> 

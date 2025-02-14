@@ -167,4 +167,14 @@ export const getProductAnalysis = (barcode: string, months: number = 1) => {
 // 切换商品状态
 export const toggleInventoryStatus = (barcode: string) => {
     return api.put<Inventory>(`/api/v1/inventory/${barcode}/toggle`);
+};
+
+// 搜索商品
+export const searchInventory = (searchText: string) => {
+    return api.get<Inventory>(`/api/v1/inventory/search/${searchText}`);
+};
+
+// 撤销交易记录
+export const cancelTransaction = (transactionId: number) => {
+    return api.delete<Inventory>(`/api/v1/transactions/${transactionId}`);
 }; 

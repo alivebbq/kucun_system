@@ -1,11 +1,13 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case
+from sqlalchemy import func, case, or_
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 
 from app.models.inventory import Inventory, Transaction
+from app.models.user import User
+from app.models.log import OperationLog
 from app.schemas.inventory import (
     InventoryCreate, 
     InventoryUpdate, 
@@ -30,6 +32,19 @@ class InventoryService:
             .filter(
                 Inventory.barcode == barcode,
                 Inventory.store_id == store_id
+            ).first()
+    
+    @staticmethod
+    def get_inventory_by_barcode_or_name(db: Session, search_text: str, store_id: int):
+        """通过条形码或商品名称搜索商品"""
+        return db.query(Inventory)\
+            .filter(
+                Inventory.store_id == store_id,
+                # 使用 or_ 来组合条件
+                or_(
+                    Inventory.barcode == search_text,
+                    Inventory.name.ilike(f'%{search_text}%')
+                )
             ).first()
     
     @staticmethod
@@ -59,7 +74,7 @@ class InventoryService:
         return db_inventory
     
     @staticmethod
-    def stock_in(db: Session, stock_in: StockIn, store_id: int):
+    def stock_in(db: Session, stock_in: StockIn, store_id: int, operator_id: int):
         """商品入库"""
         db_inventory = InventoryService.get_inventory_by_barcode(db, stock_in.barcode, store_id)
         if not db_inventory:
@@ -77,7 +92,8 @@ class InventoryService:
             quantity=stock_in.quantity,
             price=stock_in.price,
             total=stock_in.quantity * stock_in.price,
-            store_id=store_id
+            store_id=store_id,
+            operator_id=operator_id
         )
         
         db.add(transaction)
@@ -86,7 +102,7 @@ class InventoryService:
         return db_inventory
     
     @staticmethod
-    def stock_out(db: Session, stock_out: StockOut, store_id: int):
+    def stock_out(db: Session, stock_out: StockOut, store_id: int, operator_id: int):
         """商品出库"""
         db_inventory = InventoryService.get_inventory_by_barcode(db, stock_out.barcode, store_id)
         if not db_inventory:
@@ -107,7 +123,8 @@ class InventoryService:
             quantity=stock_out.quantity,
             price=stock_out.price,
             total=stock_out.quantity * stock_out.price,
-            store_id=store_id
+            store_id=store_id,
+            operator_id=operator_id
         )
         
         db.add(transaction)
@@ -194,10 +211,20 @@ class InventoryService:
         skip: int = 0,
         limit: int = 100
     ):
-        # 基础查询
-        base_query = db.query(Transaction, Inventory.name)\
-            .join(Inventory, Transaction.barcode == Inventory.barcode)\
-            .filter(Transaction.store_id == store_id)
+        """获取交易记录时包含操作人信息"""
+        base_query = db.query(
+            Transaction,
+            Inventory.name,
+            User.name.label('operator_name')
+        ).join(
+            Inventory,
+            Transaction.barcode == Inventory.barcode
+        ).join(
+            User,
+            Transaction.operator_id == User.id
+        ).filter(
+            Transaction.store_id == store_id
+        )
         
         # 添加过滤条件
         if barcode:
@@ -228,9 +255,11 @@ class InventoryService:
                     "quantity": transaction.quantity,
                     "price": transaction.price,
                     "total": transaction.total,
-                    "timestamp": transaction.timestamp
+                    "timestamp": transaction.timestamp,
+                    "operator_id": transaction.operator_id,
+                    "operator_name": operator_name
                 }
-                for transaction, name in results
+                for transaction, name, operator_name in results
             ],
             "total": total
         }
@@ -637,4 +666,84 @@ class InventoryService:
         db_inventory.is_active = not db_inventory.is_active
         db.commit()
         db.refresh(db_inventory)
-        return db_inventory 
+        return db_inventory
+
+    @staticmethod
+    def search_inventory(db: Session, search_text: str, store_id: int, limit: int = 10):
+        """搜索商品，返回多个结果"""
+        return db.query(Inventory)\
+            .filter(
+                Inventory.store_id == store_id,
+                or_(
+                    Inventory.barcode == search_text,
+                    Inventory.name.ilike(f'%{search_text}%')
+                )
+            )\
+            .limit(limit)\
+            .all()
+
+    @staticmethod
+    def cancel_transaction(db: Session, transaction_id: int, store_id: int, operator_id: int):
+        """撤销交易"""
+        print(f"Cancelling transaction {transaction_id} for store {store_id} by operator {operator_id}")
+        
+        # 获取交易记录
+        transaction = db.query(Transaction).filter(
+            Transaction.id == transaction_id,
+            Transaction.store_id == store_id
+        ).first()
+        
+        if not transaction:
+            print(f"Transaction {transaction_id} not found for store {store_id}")
+            return None
+        
+        # 获取商品信息用于日志记录
+        inventory = db.query(Inventory).filter(
+            Inventory.barcode == transaction.barcode,
+            Inventory.store_id == store_id
+        ).first()
+        
+        if not inventory:
+            return None
+        
+        try:
+            # 记录原始状态用于日志
+            original_stock = inventory.stock
+            
+            # 更新库存
+            if transaction.type == "in":
+                if inventory.stock < transaction.quantity:
+                    raise ValueError("库存不足，无法撤销")
+                inventory.stock -= transaction.quantity
+            else:
+                inventory.stock += transaction.quantity
+            
+            # 创建操作日志
+            log = OperationLog(
+                operation_type="cancel_transaction",
+                operator_id=operator_id,
+                store_id=store_id,
+                details={
+                    "transaction_id": transaction.id,
+                    "barcode": transaction.barcode,
+                    "product_name": inventory.name,
+                    "type": transaction.type,
+                    "quantity": transaction.quantity,
+                    "price": str(transaction.price),
+                    "original_stock": original_stock,
+                    "new_stock": inventory.stock,
+                    "timestamp": transaction.timestamp.isoformat()
+                }
+            )
+            db.add(log)
+            
+            # 删除交易记录
+            db.delete(transaction)
+            db.commit()
+            db.refresh(inventory)
+            
+            return inventory
+            
+        except Exception as e:
+            db.rollback()
+            raise 

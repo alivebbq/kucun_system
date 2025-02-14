@@ -5,8 +5,24 @@
             <div class="search-form">
                 <!-- 左侧：搜索和选择区域 -->
                 <div class="search-controls">
-                    <el-input v-model="searchBarcode" placeholder="请输入商品条形码" class="barcode-input"
-                        @keyup.enter="handleSearch">
+                    <el-autocomplete
+                        v-model="searchBarcode"
+                        :fetch-suggestions="querySearch"
+                        placeholder="请输入商品条形码或名称"
+                        :trigger-on-focus="false"
+                        @select="handleSelect"
+                        @keyup.enter="handleSearch"
+                        class="barcode-input"
+                    >
+                        <template #default="{ item }">
+                            <div class="search-item">
+                                <div class="name">{{ item.name }}</div>
+                                <div class="info">
+                                    <span>条码: {{ item.barcode }}</span>
+                                    <span>库存: {{ item.stock }}{{ item.unit }}</span>
+                                </div>
+                            </div>
+                        </template>
                         <template #append>
                             <el-button @click="handleSearch">
                                 <el-icon>
@@ -14,7 +30,7 @@
                                 </el-icon>
                             </el-button>
                         </template>
-                    </el-input>
+                    </el-autocomplete>
 
                     <el-select v-model="timeRange" class="time-range">
                         <el-option label="最近1个月" value="1" />
@@ -78,7 +94,7 @@ import {
     GridComponent
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
-import { getInventoryByBarcode, getProductAnalysis } from '../api/inventory';
+import { getInventoryByBarcode, getProductAnalysis, searchInventory } from '../api/inventory';
 import type { Inventory, ProductAnalysis } from '../api/inventory';
 
 // 注册 ECharts 组件
@@ -411,6 +427,28 @@ watch(timeRange, () => {
         loadAnalysisData();
     }
 });
+
+// 搜索建议
+const querySearch = async (queryString: string, cb: (arg: any[]) => void) => {
+    if (!queryString) {
+        cb([]);
+        return;
+    }
+
+    try {
+        const response = await searchInventory(queryString);
+        cb(response);
+    } catch (error) {
+        console.error('搜索商品失败:', error);
+        cb([]);
+    }
+};
+
+// 选择商品
+const handleSelect = (item: Inventory) => {
+    searchBarcode.value = item.barcode;
+    handleSearch();  // 自动触发搜索
+};
 </script>
 
 <style scoped>
@@ -545,5 +583,24 @@ watch(timeRange, () => {
     padding: 8px 15px;
     height: 100%;
     /* 让卡片内容区域占满高度 */
+}
+
+.search-item {
+    padding: 4px 0;
+}
+
+.search-item .name {
+    font-weight: bold;
+}
+
+.search-item .info {
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    gap: 10px;
+}
+
+:deep(.el-autocomplete) {
+    width: 100%;
 }
 </style>

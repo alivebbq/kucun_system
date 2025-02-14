@@ -2,7 +2,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.endpoints import inventory, user
+from app.api.endpoints import inventory, user, log
 from app.db.session import engine, Base
 from app.middleware.logging import logging_middleware
 from contextlib import asynccontextmanager
@@ -68,8 +68,6 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=3600
 )
 
 # 添加一个简单的根路由
@@ -82,17 +80,23 @@ async def root():
 async def test_route():
     return {"message": "Test route works!"}
 
-# 用户相关路由要放在前面
+# 用户相关路由
 app.include_router(
     user.router, 
     prefix="/api/v1/auth",
     tags=["users"]
 )
 
+# 库存相关路由
 app.include_router(
-    inventory.router, 
-    prefix="/api/v1", 
+    inventory.router,
     tags=["inventory"]
+)
+
+# 日志相关路由
+app.include_router(
+    log.router,
+    tags=["logs"]
 )
 
 # 添加一个测试路由专门用于测试登录

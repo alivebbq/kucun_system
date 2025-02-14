@@ -100,6 +100,17 @@ const routes = [
                     requiresAuth: true,
                     requiresOwner: true
                 }
+            },
+            {
+                path: 'logs',
+                name: 'OperationLogs',
+                component: () => import('../views/OperationLogs.vue'),
+                meta: {
+                    title: '操作日志',
+                    icon: 'Document',
+                    requiresAuth: true,
+                    requiresOwner: true
+                }
             }
         ]
     },

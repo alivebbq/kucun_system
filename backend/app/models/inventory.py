@@ -17,8 +17,9 @@ class Inventory(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
     
-    # 使用字符串引用避免循环导入
+    # 关联关系
     store = relationship("Store", back_populates="inventory")
+    transactions = relationship("Transaction", back_populates="inventory")
 
 class Transaction(Base):
     __tablename__ = "transactions"
@@ -31,9 +32,12 @@ class Transaction(Base):
     total = Column(Numeric(10, 2), nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
+    operator_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # 添加操作人ID
     
-    # 使用字符串引用避免循环导入
+    # 关联关系
     store = relationship("Store", back_populates="transactions")
+    inventory = relationship("Inventory", back_populates="transactions")
+    operator = relationship("User", back_populates="transactions")  # 添加与操作人的关联
     
     __table_args__ = (
         CheckConstraint(type.in_(['in', 'out']), name='check_transaction_type'),

@@ -8,16 +8,37 @@
       </template>
 
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" class="form">
-        <el-form-item label="条形码" prop="barcode">
-          <el-input v-model="form.barcode" placeholder="请扫描或输入商品条形码" @keyup.enter="handleSearch">
-            <template #append>
-              <el-button @click="handleSearch">
-                <el-icon>
-                  <Search />
-                </el-icon>
-              </el-button>
-            </template>
-          </el-input>
+        <el-form-item label="商品搜索" prop="barcode">
+          <div class="search-with-button">
+            <el-autocomplete
+              v-model="form.barcode"
+              :fetch-suggestions="querySearch"
+              placeholder="请输入商品条形码或名称"
+              :trigger-on-focus="false"
+              @select="handleSelect"
+              @keyup.enter="handleSearch"
+              class="search-input"
+            >
+              <template #default="{ item }">
+                <div class="search-item">
+                  <div class="name">{{ item.name }}</div>
+                  <div class="info">
+                    <span>条码: {{ item.barcode }}</span>
+                    <span>库存: {{ item.stock }}{{ item.unit }}</span>
+                  </div>
+                </div>
+              </template>
+              <template #append>
+                <el-button @click="handleSearch">
+                  <el-icon><Search /></el-icon>
+                </el-button>
+              </template>
+            </el-autocomplete>
+            <el-button @click="showProductList">
+              <el-icon><List /></el-icon>
+              从列表选择
+            </el-button>
+          </div>
         </el-form-item>
 
         <div v-if="currentProduct" class="product-info">
@@ -77,27 +98,68 @@
             ¥{{ formatNumber(row.total) }}
           </template>
         </el-table-column>
+        <el-table-column prop="operator_name" label="操作人" width="120" />
         <el-table-column prop="timestamp" label="出库时间" width="180">
           <template #default="{ row }">
             {{ formatDate(row.timestamp) }}
           </template>
         </el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button 
+              type="danger" 
+              link 
+              @click="handleCancel(row)"
+            >
+              撤销
+            </el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </el-card>
+
+    <!-- 商品列表对话框 -->
+    <el-dialog
+      v-model="productListVisible"
+      title="选择商品"
+      width="80%"
+    >
+      <el-table
+        :data="productList"
+        style="width: 100%"
+        height="500px"
+        @row-click="handleProductSelect"
+      >
+        <el-table-column prop="barcode" label="条形码" width="150" />
+        <el-table-column prop="name" label="商品名称" />
+        <el-table-column prop="unit" label="单位" width="100" />
+        <el-table-column prop="stock" label="库存" width="100" align="right" />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.is_active ? 'success' : 'danger'">
+              {{ row.is_active ? '启用' : '禁用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { ElMessage } from 'element-plus';
-import { Search } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Search, List } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
   getInventoryByBarcode,
   stockOut,
   getTransactions,
+  cancelTransaction,
   type Inventory,
-  type Transaction
+  type Transaction,
+  searchInventory,
+  getInventoryList
 } from '../api/inventory';
 
 const formRef = ref<FormInstance>();
@@ -173,22 +235,82 @@ const formatDate = (dateStr: string) => {
   });
 };
 
-// 搜索商品
-const handleSearch = async () => {
-  if (!form.value.barcode) {
-    ElMessage.warning('请输入条形码');
+// 搜索建议
+const querySearch = async (queryString: string, cb: (arg: any[]) => void) => {
+  if (!queryString) {
+    cb([]);
     return;
   }
 
   try {
-    currentProduct.value = await getInventoryByBarcode(form.value.barcode);
-    if (currentProduct.value) {
-      // 移除设置默认价格
-      // form.value.price = currentProduct.value.avg_selling_price || currentProduct.value.selling_price;
+    const response = await searchInventory(queryString);
+    cb(response);
+  } catch (error) {
+    console.error('搜索商品失败:', error);
+    cb([]);
+  }
+};
+
+// 商品列表相关
+const productListVisible = ref(false);
+const productList = ref<Inventory[]>([]);
+
+// 显示商品列表
+const showProductList = async () => {
+  try {
+    const response = await getInventoryList();
+    productList.value = response;
+    productListVisible.value = true;
+  } catch (error) {
+    console.error('加载商品列表失败:', error);
+    ElMessage.error('加载商品列表失败');
+  }
+};
+
+// 选择商品
+const handleSelect = (item: Inventory) => {
+  currentProduct.value = item;
+  form.value.barcode = item.barcode;
+};
+
+// 处理搜索
+const handleSearch = async () => {
+  if (!form.value.barcode) {
+    ElMessage.warning('请输入商品条形码或名称');
+    return;
+  }
+
+  try {
+    const response = await searchInventory(form.value.barcode);
+    if (response.length === 0) {
+      ElMessage.warning('未找到商品');
+      currentProduct.value = null;
+    } else if (response.length === 1) {
+      currentProduct.value = response[0];
+      form.value.barcode = response[0].barcode;
+    } else {
+      // 如果有多个结果，显示选择对话框
+      ElMessageBox.select({
+        title: '请选择商品',
+        message: '找到多个匹配的商品，请选择：',
+        options: response.map(item => ({
+          label: `${item.name} (${item.barcode})`,
+          value: item
+        })),
+        cancelButtonText: '取消',
+        confirmButtonText: '确定'
+      }).then(selected => {
+        if (selected) {
+          currentProduct.value = selected;
+          form.value.barcode = selected.barcode;
+        }
+      }).catch(() => {
+        // 用户取消选择
+      });
     }
   } catch (error) {
-    console.error('查询商品失败:', error);
-    ElMessage.error('商品不存在');
+    console.error('搜索商品失败:', error);
+    ElMessage.error('搜索商品失败');
     currentProduct.value = null;
   }
 };
@@ -276,6 +398,59 @@ const handleSubmit = async () => {
   });
 };
 
+// 选择商品
+const handleProductSelect = (row: Inventory) => {
+  if (!row.is_active) {
+    ElMessage.warning('该商品已禁用，无法选择');
+    return;
+  }
+  currentProduct.value = row;
+  form.value.barcode = row.barcode;
+  productListVisible.value = false;
+};
+
+// 处理撤销
+const handleCancel = async (row: Transaction) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要撤销这条记录吗？这将会相应调整库存数量。',
+      '撤销确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确定',
+        cancelButtonText: '取消'
+      }
+    );
+
+    console.log('Cancelling transaction:', row.id);
+    await cancelTransaction(row.id);
+    ElMessage.success('撤销成功');
+    // 刷新记录列表和当前商品信息
+    loadRecentRecords();
+    if (currentProduct.value?.barcode === row.barcode) {
+      await searchProduct(row.barcode);
+    }
+  } catch (error: any) {
+    console.error('Cancel error:', error);
+    if (error !== 'cancel') {
+      ElMessage.error(error.response?.data?.detail || '撤销失败');
+    }
+  }
+};
+
+// 搜索商品信息
+const searchProduct = async (barcode: string) => {
+  try {
+    const response = await getInventoryByBarcode(barcode);
+    currentProduct.value = response;
+    return response;
+  } catch (error) {
+    console.error('获取商品信息失败:', error);
+    ElMessage.error('获取商品信息失败');
+    return null;
+  }
+};
+
 // 初始化加载
 loadRecentRecords();
 </script>
@@ -356,5 +531,37 @@ loadRecentRecords();
   margin-left: 10px;
   color: #f56c6c;
   font-size: 14px;
+}
+
+.search-item {
+  padding: 4px 0;
+}
+
+.search-item .name {
+  font-weight: bold;
+}
+
+.search-item .info {
+  font-size: 12px;
+  color: #666;
+  display: flex;
+  gap: 10px;
+}
+
+:deep(.el-autocomplete) {
+  width: 100%;
+}
+
+.search-with-button {
+  display: flex;
+  gap: 10px;
+}
+
+.search-with-button .el-autocomplete {
+  flex: 1;
+}
+
+:deep(.el-dialog__body) {
+  padding: 10px 20px;
 }
 </style>

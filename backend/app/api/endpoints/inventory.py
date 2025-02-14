@@ -12,7 +12,7 @@ from app.schemas.inventory import (
 )
 from app.core.auth import get_current_active_user
 
-router = APIRouter()
+router = APIRouter(prefix="/api/v1")  # 添加前缀
 
 @router.get("/inventory/", response_model=List[Inventory])
 def list_inventory(
@@ -68,29 +68,33 @@ def stock_in(
     current_user = Depends(get_current_active_user)
 ):
     """商品入库"""
-    db_inventory = InventoryService.stock_in(db, stock_in, current_user.store_id)
-    if db_inventory is None:
-        raise HTTPException(status_code=404, detail="商品不存在")
-    return db_inventory
+    return InventoryService.stock_in(
+        db, 
+        stock_in, 
+        current_user.store_id,
+        current_user.id
+    )
 
 @router.post("/inventory/stock-out", response_model=Inventory)
 def stock_out(
-    stock_out: StockOut, 
+    stock_out: StockOut,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
     """商品出库"""
-    db_inventory = InventoryService.stock_out(db, stock_out, current_user.store_id)
-    if db_inventory is None:
-        raise HTTPException(status_code=404, detail="商品不存在或库存不足")
-    return db_inventory
+    return InventoryService.stock_out(
+        db, 
+        stock_out, 
+        current_user.store_id,
+        current_user.id
+    )
 
 @router.get("/stats", response_model=InventoryStats)
 def get_inventory_stats(db: Session = Depends(get_db)):
     """获取库存统计信息"""
     return InventoryService.get_inventory_stats(db)
 
-@router.get("/transactions/", response_model=TransactionResponse)
+@router.get("/transactions", response_model=TransactionResponse)
 def list_transactions(
     barcode: Optional[str] = None,
     type: Optional[str] = None,
@@ -113,17 +117,29 @@ def list_transactions(
         limit=limit
     )
 
-@router.delete("/inventory/{barcode}")
-def delete_inventory(
-    barcode: str,
+@router.delete("/transactions/{transaction_id}", response_model=Inventory)
+def cancel_transaction(
+    transaction_id: int,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
-    """删除商品"""
-    db_inventory = InventoryService.delete_inventory(db, barcode, current_user.store_id)
-    if db_inventory is None:
-        raise HTTPException(status_code=404, detail="商品不存在")
-    return {"message": "删除成功"}
+    """撤销交易"""
+    try:
+        print(f"Attempting to cancel transaction {transaction_id}")
+        result = InventoryService.cancel_transaction(
+            db, 
+            transaction_id, 
+            current_user.store_id,
+            current_user.id
+        )
+        if not result:
+            print(f"Transaction {transaction_id} not found")
+            raise HTTPException(status_code=404, detail="交易记录不存在")
+        print(f"Successfully cancelled transaction {transaction_id}")
+        return result
+    except ValueError as e:
+        print(f"Error cancelling transaction: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/performance/", response_model=PerformanceStats)
 def get_performance_stats(
@@ -201,4 +217,13 @@ def toggle_inventory_status(
     db_inventory = InventoryService.toggle_status(db, barcode, current_user.store_id)
     if not db_inventory:
         raise HTTPException(status_code=404, detail="商品不存在")
-    return db_inventory 
+    return db_inventory
+
+@router.get("/inventory/search/{search_text}", response_model=List[Inventory])
+def search_inventory(
+    search_text: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """搜索商品"""
+    return InventoryService.search_inventory(db, search_text, current_user.store_id) 

@@ -44,14 +44,16 @@ const userStore = useUserStore();
 const filteredMenuItems = computed(() => {
   const mainRoute = router.options.routes.find(r => r.path === '/');
   return mainRoute?.children?.filter(item => {
+    // 需要店主权限的页面
     if (item.meta?.requiresOwner) {
       return userStore.isOwner;
     }
+    // 需要特定权限的页面
     if (item.meta?.permission) {
-      return userStore.hasPermission(item.meta.permission as string);
+      return userStore.hasPermission(item.meta.permission);
     }
     return true;
-  }) || [];
+  });
 });
 
 // 处理退出登录

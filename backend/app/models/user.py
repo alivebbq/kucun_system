@@ -1,4 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, JSON, DateTime
+from sqlalchemy import (
+    Column, Integer, String, Boolean, ForeignKey, 
+    JSON, DateTime
+)
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.session import Base
@@ -16,6 +19,7 @@ class Store(Base):
     users = relationship("User", back_populates="store")
     inventory = relationship("Inventory", back_populates="store")
     transactions = relationship("Transaction", back_populates="store")
+    operation_logs = relationship("OperationLog", back_populates="store")
 
 class User(Base):
     __tablename__ = "users"
@@ -32,4 +36,6 @@ class User(Base):
     last_login = Column(DateTime, nullable=True)
     
     # 关联
-    store = relationship("Store", back_populates="users") 
+    store = relationship("Store", back_populates="users")
+    transactions = relationship("Transaction", back_populates="operator")
+    operation_logs = relationship("OperationLog", back_populates="operator") 

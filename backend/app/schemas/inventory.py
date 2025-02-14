@@ -52,6 +52,8 @@ class Transaction(TransactionBase):
     name: str
     total: Decimal
     timestamp: datetime
+    operator_id: int
+    operator_name: str
 
     class Config:
         from_attributes = True
