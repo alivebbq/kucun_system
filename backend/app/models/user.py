@@ -32,10 +32,25 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     store_id = Column(Integer, ForeignKey("stores.id"))
     permissions = Column(String(200), default="")  # 存储为逗号分隔的字符串
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)  # 使用本地时间
     last_login = Column(DateTime, nullable=True)
     
     # 关联
     store = relationship("Store", back_populates="users")
     transactions = relationship("Transaction", back_populates="operator")
-    operation_logs = relationship("OperationLog", back_populates="operator") 
+    operation_logs = relationship("OperationLog", back_populates="operator")
+
+    @property
+    def permission_list(self):
+        """获取权限列表"""
+        if not self.permissions:
+            return []
+        return [p.strip() for p in self.permissions.split(',') if p.strip()]
+    
+    @permission_list.setter
+    def permission_list(self, permissions):
+        """设置权限列表"""
+        if isinstance(permissions, list):
+            self.permissions = ','.join(permissions)
+        else:
+            self.permissions = str(permissions) 

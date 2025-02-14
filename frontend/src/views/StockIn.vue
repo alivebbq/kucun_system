@@ -1,94 +1,126 @@
 <template>
-  <div class="stock-in">
-    <el-card class="stock-in-form">
-      <template #header>
-        <div class="card-header">
-          <span>商品入库</span>
-        </div>
-      </template>
-
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" class="form">
-        <el-form-item label="商品搜索" prop="barcode">
-          <div class="search-with-button">
+  <div class="page-container">
+    <!-- 顶部工具栏 -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <el-form :inline="true" class="search-form">
+          <el-form-item>
             <el-autocomplete
-              v-model="form.barcode"
-              :fetch-suggestions="querySearch"
-              placeholder="请输入商品条形码或名称"
+              v-model="searchQuery"
+              :fetch-suggestions="searchProduct"
+              placeholder="输入商品名称或条形码"
               :trigger-on-focus="false"
-              @select="handleSelect"
-              @keyup.enter="handleSearch"
+              clearable
               class="search-input"
+              @select="handleSelect"
             >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
               <template #default="{ item }">
                 <div class="search-item">
                   <div class="name">{{ item.name }}</div>
                   <div class="info">
-                    <span>条码: {{ item.barcode }}</span>
-                    <span>库存: {{ item.stock }}{{ item.unit }}</span>
+                    <span>条形码: {{ item.barcode }}</span>
+                    <span>库存: {{ item.stock }}</span>
                   </div>
                 </div>
               </template>
             </el-autocomplete>
-            <el-button @click="showProductList">
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="showProductList">
               <el-icon><List /></el-icon>
-              从列表选择
+              选择商品
             </el-button>
-          </div>
+          </el-form-item>
+        </el-form>
+      </div>
+    </div>
+
+    <!-- 商品信息卡片 -->
+    <el-card v-if="currentProduct" class="content-card product-info">
+      <el-descriptions :column="3" border>
+        <el-descriptions-item label="商品名称">{{ currentProduct.name }}</el-descriptions-item>
+        <el-descriptions-item label="条形码">{{ currentProduct.barcode }}</el-descriptions-item>
+        <el-descriptions-item label="单位">{{ currentProduct.unit }}</el-descriptions-item>
+        <el-descriptions-item label="当前库存">
+          <span :class="{ 'low-stock': currentProduct.stock <= currentProduct.warning_stock }">
+            {{ currentProduct.stock }}
+          </span>
+        </el-descriptions-item>
+        <el-descriptions-item label="警戒库存">{{ currentProduct.warning_stock }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="currentProduct.is_active ? 'success' : 'danger'">
+            {{ currentProduct.is_active ? '启用' : '禁用' }}
+          </el-tag>
+        </el-descriptions-item>
+      </el-descriptions>
+
+      <!-- 入库表单 -->
+      <el-form 
+        ref="formRef" 
+        :model="form" 
+        :rules="rules" 
+        label-width="100px"
+        class="custom-form stock-form"
+      >
+        <el-form-item label="入库数量" prop="quantity">
+          <el-input-number 
+            v-model="form.quantity" 
+            :min="1" 
+            :precision="0"
+            style="width: 100%"
+          />
         </el-form-item>
-
-        <div v-if="currentProduct" class="product-info">
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="商品名称">
-              {{ currentProduct.name }}
-            </el-descriptions-item>
-            <el-descriptions-item label="单位">
-              {{ currentProduct.unit }}
-            </el-descriptions-item>
-            <el-descriptions-item label="当前库存">
-              {{ currentProduct.stock }}
-            </el-descriptions-item>
-          </el-descriptions>
-        </div>
-
-        <el-form-item label="入库数量" prop="quantity" v-if="currentProduct">
-          <el-input v-model="form.quantity" placeholder="请输入入库数量" type="number" @input="handleQuantityInput" :disabled="!currentProduct.is_active" />
+        <el-form-item label="单价" prop="price">
+          <el-input-number 
+            v-model="form.price" 
+            :min="0" 
+            :precision="2"
+            :step="0.01"
+            style="width: 100%"
+          />
         </el-form-item>
-
-        <el-form-item label="进货单价" prop="price" v-if="currentProduct">
-          <el-input v-model="form.price" placeholder="请输入进货单价" type="number" @input="handlePriceInput" :disabled="!currentProduct.is_active" />
-        </el-form-item>
-
-        <el-form-item v-if="currentProduct">
-          <el-button type="primary" :loading="loading" @click="handleSubmit" :disabled="!currentProduct.is_active">
+        <el-form-item>
+          <el-button 
+            type="primary" 
+            @click="handleSubmit"
+            :disabled="!currentProduct?.is_active"
+          >
             确认入库
           </el-button>
-          <span v-if="!currentProduct.is_active" class="disabled-tip">
-            该商品已禁用，无法入库
+          <span v-if="!currentProduct?.is_active" class="disabled-tip">
+            禁用商品不能入库
           </span>
         </el-form-item>
       </el-form>
     </el-card>
 
     <!-- 最近入库记录 -->
-    <el-card class="recent-records">
+    <el-card class="content-card">
       <template #header>
         <div class="card-header">
           <span>最近入库记录</span>
         </div>
       </template>
 
-      <el-table :data="recentRecords" style="width: 100%">
+      <el-table 
+        :data="recentRecords" 
+        style="width: 100%"
+        :header-cell-class-name="'table-header'"
+      >
         <el-table-column prop="barcode" label="条形码" width="150" />
         <el-table-column prop="name" label="商品名称" />
         <el-table-column prop="quantity" label="数量" width="100" align="right" />
         <el-table-column prop="price" label="单价" width="120" align="right">
           <template #default="{ row }">
-            ¥{{ formatNumber(row.price) }}
+            <span class="amount">¥{{ formatNumber(row.price) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="total" label="总金额" width="120" align="right">
           <template #default="{ row }">
-            ¥{{ formatNumber(row.total) }}
+            <span class="amount">¥{{ formatNumber(row.total) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="operator_name" label="操作人" width="120" />
@@ -116,11 +148,13 @@
       v-model="productListVisible"
       title="选择商品"
       width="80%"
+      class="custom-dialog"
     >
       <el-table
         :data="productList"
         style="width: 100%"
         height="500px"
+        :header-cell-class-name="'table-header'"
         @row-click="handleProductSelect"
       >
         <el-table-column prop="barcode" label="条形码" width="150" />
@@ -435,108 +469,42 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
-.stock-in {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  height: 100%;
-  box-sizing: border-box;
-}
-
-.stock-in-form {
-  width: 100%;
-}
-
-.form {
+<style lang="scss" scoped>
+.stock-form {
+  margin-top: 20px;
   max-width: 500px;
-  /* 限制表单宽度，使其不会太宽 */
-  padding: 20px 0;
 }
 
-.product-info {
-  margin: 15px 0;
-}
-
-.card-header {
+.search-form {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-:deep(.el-input) {
-  width: 100%;
-}
-
-/* 隐藏number类型输入框的上下箭头 */
-:deep(.el-input__inner[type="number"]) {
-  -moz-appearance: textfield;
-}
-
-:deep(.el-input__inner[type="number"]::-webkit-outer-spin-button),
-:deep(.el-input__inner[type="number"]::-webkit-inner-spin-button) {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-:deep(.el-descriptions) {
-  padding: 15px;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-}
-
-:deep(.el-form-item) {
-  margin-bottom: 15px;
-}
-
-:deep(.el-descriptions__title) {
-  font-size: 16px;
-}
-
-.recent-records {
-  flex: 1;
-  overflow: auto;
-  /* 允许表格内容滚动 */
-  min-height: 300px;
-  /* 设置最小高度 */
-}
-
-.disabled-tip {
-  margin-left: 10px;
-  color: #f56c6c;
-  font-size: 14px;
+  gap: 12px;
 }
 
 .search-item {
   padding: 4px 0;
+
+  .name {
+    font-weight: bold;
+  }
+
+  .info {
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    gap: 10px;
+  }
 }
 
-.search-item .name {
+.low-stock {
+  color: #F56C6C;
   font-weight: bold;
 }
 
-.search-item .info {
-  font-size: 12px;
-  color: #666;
-  display: flex;
-  gap: 10px;
+.disabled-tip {
+  margin-left: 10px;
+  color: #F56C6C;
+  font-size: 14px;
 }
 
-:deep(.el-autocomplete) {
-  width: 100%;
-}
-
-.search-with-button {
-  display: flex;
-  gap: 10px;
-}
-
-.search-with-button .el-autocomplete {
-  flex: 1;
-}
-
-:deep(.el-dialog__body) {
-  padding: 10px 20px;
-}
+// 其他样式已在 common.scss 中定义
 </style>

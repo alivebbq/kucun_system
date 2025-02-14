@@ -1,90 +1,175 @@
 <template>
-  <div class="users">
+  <div class="page-container">
+    <!-- 顶部工具栏 -->
     <div class="toolbar">
-      <div class="left">
+      <div class="toolbar-left">
         <el-button type="primary" @click="handleAdd">
           <el-icon><Plus /></el-icon>
           添加员工
         </el-button>
       </div>
+      <div class="toolbar-right">
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索员工姓名..."
+          class="search-input"
+          clearable
+          @input="handleSearch"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+      </div>
     </div>
 
-    <el-table 
-      :data="sortedUsers" 
-      style="width: 100%" 
-      v-loading="loading"
-    >
-      <el-table-column prop="username" label="用户名" width="150" />
-      <el-table-column prop="name" label="姓名" width="150" />
-      <el-table-column label="身份" width="100">
-        <template #default="{ row }">
-          <el-tag 
-            :type="row.is_owner ? 'success' : 'info'"
-            effect="plain"
-          >
-            {{ row.is_owner ? '店主' : '员工' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="权限" min-width="300">
-        <template #default="{ row }">
-          <template v-if="!row.is_owner">
+    <!-- 员工列表 -->
+    <el-card class="content-card">
+      <el-table 
+        :data="filteredUsers" 
+        style="width: 100%" 
+        v-loading="loading"
+        :header-cell-class-name="'table-header'"
+        :row-class-name="tableRowClassName"
+      >
+        <el-table-column label="员工信息" min-width="200">
+          <template #default="{ row }">
+            <div class="user-info">
+              <el-avatar :size="40" :src="generateAvatar(row)">
+                {{ row.name?.[0]?.toUpperCase() || row.username[0].toUpperCase() }}
+              </el-avatar>
+              <div class="user-details">
+                <div class="username">{{ row.name || row.username }}</div>
+                <div class="account">{{ row.username }}</div>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="身份" width="100">
+          <template #default="{ row }">
             <el-tag 
-              v-for="perm in sortedPermissions(row.permissions)" 
-              :key="perm" 
-              class="permission-tag"
+              :type="row.is_owner ? 'success' : 'info'"
+              effect="plain"
             >
-              {{ permissionLabels[perm] }}
+              {{ row.is_owner ? '店主' : '员工' }}
             </el-tag>
           </template>
-          <el-tag v-else type="success">全部权限</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="last_login" label="最后登录时间" width="180">
-        <template #default="{ row }">
-          {{ row.last_login ? formatDate(row.last_login) : '从未登录' }}
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="150" fixed="right">
-        <template #default="{ row }">
-          <template v-if="!row.is_owner">
-            <el-button-group>
-              <el-button type="primary" link @click="handleEdit(row)">
+        </el-table-column>
+        
+        <el-table-column label="权限" min-width="300">
+          <template #default="{ row }">
+            <template v-if="!row.is_owner">
+              <el-tag 
+                v-for="perm in sortedPermissions(row.permissions)" 
+                :key="perm"
+                class="permission-tag"
+                effect="light"
+              >
+                {{ permissionLabels[perm] }}
+              </el-tag>
+            </template>
+            <el-tag v-else type="success" effect="light">全部权限</el-tag>
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag 
+              :type="row.is_active ? 'success' : 'danger'"
+              effect="light"
+              class="status-tag"
+            >
+              {{ row.is_active ? '启用' : '禁用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        
+        <el-table-column prop="last_login" label="最后登录" width="180">
+          <template #default="{ row }">
+            {{ row.last_login ? formatDate(row.last_login) : '从未登录' }}
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="操作" width="150" fixed="right">
+          <template #default="{ row }">
+            <div class="action-buttons" v-if="!row.is_owner">
+              <el-button 
+                type="primary" 
+                link
+                @click="handleEdit(row)"
+              >
                 编辑
               </el-button>
-              <el-button type="danger" link @click="handleDelete(row)">
-                删除
+              <el-button 
+                :type="row.is_active ? 'danger' : 'success'" 
+                link
+                @click="handleToggleStatus(row)"
+              >
+                {{ row.is_active ? '禁用' : '启用' }}
               </el-button>
-            </el-button-group>
+            </div>
           </template>
-        </template>
-      </el-table-column>
-    </el-table>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
-    <!-- 添加/编辑员工对话框 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑员工' : '添加员工'" width="500px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item label="用户名" prop="username" v-if="!isEdit">
-          <el-input v-model="form.username" />
+    <!-- 添加/编辑对话框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="isEdit ? '编辑员工' : '添加员工'"
+      width="500px"
+      class="custom-dialog"
+      destroy-on-close
+    >
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="100px"
+        class="custom-form"
+      >
+        <el-form-item label="用户名" prop="username">
+          <el-input 
+            v-model="form.username" 
+            :disabled="isEdit"
+            placeholder="登录账号"
+          />
         </el-form-item>
+        
         <el-form-item label="姓名" prop="name">
-          <el-input v-model="form.name" />
+          <el-input 
+            v-model="form.name"
+            placeholder="员工姓名"
+          />
         </el-form-item>
-        <el-form-item label="密码" prop="password" v-if="!isEdit">
-          <el-input v-model="form.password" type="password" />
+        
+        <el-form-item 
+          label="密码" 
+          prop="password"
+          :rules="isEdit ? [] : rules.password"
+        >
+          <el-input
+            v-model="form.password"
+            type="password"
+            placeholder="不修改请留空"
+            show-password
+          />
         </el-form-item>
+        
         <el-form-item label="权限" prop="permissions">
           <el-checkbox-group v-model="form.permissions">
             <el-checkbox 
-              v-for="perm in permissionOrder" 
-              :key="perm" 
-              :label="perm"
+              v-for="(label, key) in permissionLabels" 
+              :key="key" 
+              :label="key"
             >
-              {{ permissionLabels[perm] }}
+              {{ label }}
             </el-checkbox>
           </el-checkbox-group>
         </el-form-item>
       </el-form>
+      
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
@@ -101,8 +186,8 @@
 import { ref, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
-import { getUsers, createUser, updateUser, deleteUser } from '../api/user';
+import { Plus, Search, Edit, Lock, Unlock } from '@element-plus/icons-vue';
+import { getUsers, createUser, updateUser } from '../api/user';
 
 const loading = ref(false);
 const users = ref([]);
@@ -212,11 +297,11 @@ const handleEdit = (row: any) => {
   dialogVisible.value = true;
 };
 
-const handleDelete = async (row: any) => {
+const handleToggleStatus = async (row: any) => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除员工"${row.name}"吗？`,
-      '警告',
+      `确定要${row.is_active ? '禁用' : '启用'}员工"${row.name}"吗？`,
+      '提示',
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
@@ -224,13 +309,18 @@ const handleDelete = async (row: any) => {
       }
     );
 
-    await deleteUser(row.id);
-    ElMessage.success('删除成功');
+    await updateUser(row.id, {
+      is_active: !row.is_active,
+      name: row.name,  // 保持其他字段不变
+      permissions: row.permissions  // 保持其他字段不变
+    });
+    
+    ElMessage.success(`${row.is_active ? '禁用' : '启用'}成功`);
     loadUsers();
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除员工失败:', error);
-      ElMessage.error('删除失败');
+      console.error('操作失败:', error);
+      ElMessage.error('操作失败');
     }
   }
 };
@@ -278,41 +368,112 @@ const sortedPermissions = (permissions: string[]) => {
   );
 };
 
+const handleAddUser = async (formEl: FormInstance | null) => {
+  if (!formEl) return;
+  
+  try {
+    await formEl.validate();
+    const userData = {
+      username: form.username,
+      name: form.name,
+      password: form.password,
+      permissions: form.permissions,
+      is_owner: false  // 添加员工时默认为 false
+    };
+    
+    await createUser(userData);
+    ElMessage.success('添加成功');
+    dialogVisible.value = false;
+    await loadUsers();
+    formEl.resetFields();
+  } catch (error) {
+    console.error('添加失败:', error);
+    ElMessage.error('添加失败');
+  }
+};
+
+// 添加搜索功能
+const searchQuery = ref('');
+
+const filteredUsers = computed(() => {
+  const query = searchQuery.value.toLowerCase();
+  return sortedUsers.value.filter(user => 
+    user.username.toLowerCase().includes(query) ||
+    user.name?.toLowerCase().includes(query)
+  );
+});
+
+const handleSearch = () => {
+  // 搜索逻辑已通过计算属性实现
+};
+
+// 生成头像背景色
+const generateAvatar = (name: string) => {
+  const colors = [
+    '#409EFF', '#67C23A', '#E6A23C', '#F56C6C', 
+    '#909399', '#9B59B6', '#3498DB', '#1ABC9C'
+  ];
+  const index = name?.length ? name.charCodeAt(0) % colors.length : 0;
+  return colors[index];
+};
+
+// 表格行样式
+const tableRowClassName = ({ row }: { row: any }) => {
+  if (row.is_owner) return 'owner-row';
+  if (!row.is_active) return 'inactive-row';
+  return '';
+};
+
 onMounted(() => {
   loadUsers();
 });
 </script>
 
-<style scoped>
-.users {
-  padding: 20px;
-  height: 100%;
-  box-sizing: border-box;
-}
-
-.toolbar {
-  margin-bottom: 20px;
+<style lang="scss" scoped>
+.user-info {
   display: flex;
-  justify-content: flex-start;
-}
+  align-items: center;
+  gap: 12px;
 
-.left {
-  display: flex;
-  gap: 10px;
+  .user-details {
+    .username {
+      font-size: 14px;
+      font-weight: 500;
+      color: #303133;
+      margin-bottom: 4px;
+    }
+
+    .account {
+      font-size: 12px;
+      color: #909399;
+    }
+  }
 }
 
 .permission-tag {
-  margin-right: 5px;
-  margin-bottom: 4px;
-}
-
-:deep(.el-tag) {
-  margin-right: 4px;
+  margin: 2px 4px;
 }
 
 :deep(.el-checkbox-group) {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 16px;
 }
+
+:deep(.owner-row) {
+  background-color: #f0f9eb !important;
+}
+
+:deep(.inactive-row) {
+  background-color: #fef0f0 !important;
+  color: #909399;
+}
+
+:deep(.el-avatar) {
+  background: linear-gradient(135deg, #409EFF, #67C23A);
+  color: white;
+  font-weight: bold;
+}
+
+// 其他样式已在 common.scss 中定义
 </style> 

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, constr
-from typing import List, Optional
+from typing import List, Optional, Union
 from datetime import datetime
 from pydantic import validator
 
@@ -12,7 +12,8 @@ class UserCreate(UserBase):
     username: constr(min_length=3, max_length=50)
     name: Optional[str] = None
     password: constr(min_length=6)
-    permissions: List[str] = []
+    permissions: Union[List[str], str] = []
+    is_owner: bool = False
 
     @validator('permissions')
     def validate_permissions(cls, v):
@@ -35,27 +36,24 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
-    permissions: Optional[List[str]] = None
     password: Optional[str] = None
+    permissions: Optional[Union[List[str], str]] = None
+    is_active: Optional[bool] = None
 
-class User(BaseModel):
+class UserInDB(UserBase):
     id: int
-    username: str
-    name: Optional[str] = None
     is_owner: bool
-    is_active: bool = True
-    permissions: List[str] = []
+    is_active: bool
+    store_id: int
+    permissions: Union[List[str], str] = []
     created_at: datetime
     last_login: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
-    @validator('permissions', pre=True)
-    def split_permissions(cls, v):
-        if isinstance(v, str):
-            return v.split(',') if v else []
-        return v
+class User(UserInDB):
+    pass
 
 class StoreBase(BaseModel):
     name: str
@@ -76,4 +74,6 @@ class Store(StoreBase):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    user: User 
+
+class TokenData(BaseModel):
+    username: Optional[str] = None 

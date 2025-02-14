@@ -1,57 +1,95 @@
 <template>
-  <div class="inventory">
+  <div class="page-container">
     <div class="toolbar">
-      <el-input v-model="searchQuery" placeholder="搜索商品名称或条形码" class="search-input" clearable @input="handleSearch">
-        <template #prefix>
-          <el-icon>
-            <Search />
-          </el-icon>
-        </template>
-      </el-input>
-
-      <el-button type="primary" @click="handleAdd">
-        <el-icon>
-          <Plus />
-        </el-icon>
-        添加商品
-      </el-button>
+      <div class="toolbar-left">
+        <el-button type="primary" @click="handleAdd">
+          <el-icon><Plus /></el-icon>
+          添加商品
+        </el-button>
+      </div>
+      <div class="toolbar-right">
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索商品..."
+          class="search-input"
+          clearable
+          @clear="handleSearch"
+          @input="handleSearch"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+      </div>
     </div>
 
-    <el-table :data="filteredInventory" style="width: 100%" v-loading="loading">
-      <el-table-column prop="barcode" label="条形码" width="150" />
-      <el-table-column prop="name" label="商品名称" />
-      <el-table-column prop="unit" label="单位" width="100" />
-      <el-table-column prop="stock" label="库存" width="100" align="right" />
-      <el-table-column prop="warning_stock" label="警戒库存" width="100" align="right" />
-      <el-table-column prop="is_active" label="状态" width="100">
-        <template #default="{ row }">
-          <el-tag :type="row.is_active ? 'success' : 'danger'">
-            {{ row.is_active ? '启用' : '禁用' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
-        <template #default="{ row }">
-          <el-button-group>
-            <el-button type="primary" link @click="handleEdit(row)">
-              编辑
-            </el-button>
-            <el-button 
-              :type="row.is_active ? 'danger' : 'success'" 
-              link 
-              @click="handleToggleStatus(row)"
-            >
-              {{ row.is_active ? '禁用' : '启用' }}
-            </el-button>
-          </el-button-group>
-        </template>
-      </el-table-column>
-    </el-table>
+    <el-card class="content-card">
+      <el-table 
+        :data="filteredInventory" 
+        style="width: 100%"
+        v-loading="loading"
+        :header-cell-class-name="'table-header'"
+      >
+        <el-table-column prop="barcode" label="条形码" width="150" />
+        <el-table-column prop="name" label="商品名称" />
+        <el-table-column prop="unit" label="单位" width="100" />
+        <el-table-column prop="stock" label="库存" width="100" align="right" class="inventory-status">
+          <template #default="{ row }">
+            <span :class="row.stock <= row.warning_stock ? 'low' : ''">
+              {{ formatNumber(row.stock) }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="warning_stock" label="警戒库存" width="100" align="right" class="inventory-status">
+          <template #default="{ row }">
+            <span :class="row.stock <= row.warning_stock ? 'low' : ''">
+              {{ formatNumber(row.warning_stock) }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="is_active" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.is_active ? 'success' : 'danger'">
+              {{ row.is_active ? '启用' : '禁用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row }">
+            <el-button-group>
+              <el-button type="primary" link @click="handleEdit(row)">
+                编辑
+              </el-button>
+              <el-button 
+                :type="row.is_active ? 'danger' : 'success'" 
+                link 
+                @click="handleToggleStatus(row)"
+              >
+                {{ row.is_active ? '禁用' : '启用' }}
+              </el-button>
+            </el-button-group>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
     <!-- 添加/编辑商品对话框 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑商品' : '添加商品'" width="600px" :close-on-click-modal="false"
-      :before-close="handleDialogClose" destroy-on-close>
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" class="form">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="isEdit ? '编辑商品' : '添加商品'"
+      width="500px"
+      class="custom-dialog"
+      :close-on-click-modal="false"
+      :before-close="handleDialogClose"
+      destroy-on-close
+    >
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="100px"
+        class="custom-form"
+      >
         <el-form-item label="条形码" prop="barcode">
           <el-input v-model="form.barcode" :disabled="isEdit" />
         </el-form-item>
@@ -285,47 +323,22 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped>
-.inventory {
-  padding: 20px;
-  height: 100%;
-  box-sizing: border-box;
-}
-
-.toolbar {
-  margin-bottom: 20px;
+<style lang="scss" scoped>
+.inventory-status {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-}
-
-.search-input {
-  width: 300px;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.form {
-  padding: 20px;
-}
-
-:deep(.el-table) {
-  margin-top: 20px;
-}
-
-:deep(.el-input-number) {
-  width: 100%;
-}
-
-:deep(.el-dialog) {
-  margin-top: 8vh !important;
-}
-
-:deep(.el-dialog__body) {
-  padding: 0;
+  gap: 8px;
+  
+  .stock-value {
+    font-weight: 500;
+    
+    &.low {
+      color: #E6A23C;
+    }
+    
+    &.empty {
+      color: #F56C6C;
+    }
+  }
 }
 </style>

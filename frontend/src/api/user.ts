@@ -50,12 +50,8 @@ export const createUser = (data: {
     return api.post<User>('/api/v1/auth/users', data);
 };
 
-export const updateUser = (id: number, data: {
-    name?: string;
-    permissions?: string[];
-    password?: string;
-}) => {
-    return api.put<User>(`/api/v1/auth/users/${id}`, data);
+export const updateUser = (userId: number, data: any) => {
+    return api.put<User>(`/api/v1/auth/users/${userId}`, data);
 };
 
 export const deleteUser = (id: number) => {

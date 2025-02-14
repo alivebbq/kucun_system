@@ -33,61 +33,72 @@ class UserService:
         return users
     
     @staticmethod
-    def create_user(db: Session, user: UserCreate, store_id: int) -> User:
+    def create_user(db: Session, user: UserCreate, store_id: int):
+        """创建新用户"""
         try:
-            hashed_password = pwd_context.hash(user.password)
-            permissions_str = ','.join(user.permissions) if user.permissions else ''
+            # 检查用户名是否已存在
+            if db.query(User).filter(User.username == user.username).first():
+                return None
             
+            # 处理权限列表
+            if isinstance(user.permissions, list):
+                permissions = ','.join(user.permissions)
+            else:
+                permissions = user.permissions.strip('[]() ').split(',')
+                permissions = [p.strip('\'\" ') for p in permissions if p.strip()]
+                permissions = ','.join(permissions)
+            
+            hashed_password = pwd_context.hash(user.password)
             db_user = User(
                 username=user.username,
                 name=user.name,
                 hashed_password=hashed_password,
+                is_owner=user.is_owner,
                 store_id=store_id,
-                permissions=permissions_str,
-                is_owner=False,  # 确保新创建的用户不是店主
-                is_active=True
+                permissions=permissions,
+                created_at=datetime.now()
             )
             
             db.add(db_user)
             db.commit()
             db.refresh(db_user)
-            
-            # 转换权限字符串为列表
-            if db_user.permissions:
-                db_user.permissions = db_user.permissions.split(',')
-            else:
-                db_user.permissions = []
-            
             return db_user
+            
         except Exception as e:
+            print(f"Error creating user: {str(e)}")
             db.rollback()
-            print(f"Error in create_user: {str(e)}")
             raise
     
     @staticmethod
-    def update_user(db: Session, user_id: int, user_update: UserUpdate) -> Optional[User]:
-        db_user = UserService.get_user(db, user_id)
+    def update_user(db: Session, username: str, user_update: UserUpdate, store_id: int):
+        """更新用户信息"""
+        db_user = db.query(User).filter(
+            User.username == username,
+            User.store_id == store_id
+        ).first()
+        
         if not db_user:
             return None
-            
-        update_data = user_update.model_dump(exclude_unset=True)
-        if "password" in update_data:
-            update_data["hashed_password"] = pwd_context.hash(update_data.pop("password"))
-        if "permissions" in update_data:
-            update_data["permissions"] = ','.join(update_data["permissions"])
         
-        for field, value in update_data.items():
-            setattr(db_user, field, value)
-            
+        # 更新权限时的处理
+        if user_update.permissions is not None:
+            if isinstance(user_update.permissions, list):
+                db_user.permissions = ','.join(user_update.permissions)
+            else:
+                permissions = user_update.permissions.strip('[]() ').split(',')
+                permissions = [p.strip('\'\" ') for p in permissions if p.strip()]
+                db_user.permissions = ','.join(permissions)
+        
+        # 更新其他字段
+        if user_update.name is not None:
+            db_user.name = user_update.name
+        if user_update.password is not None:
+            db_user.hashed_password = pwd_context.hash(user_update.password)
+        if user_update.is_active is not None:
+            db_user.is_active = user_update.is_active
+        
         db.commit()
         db.refresh(db_user)
-        
-        # 转换权限字符串为列表
-        if db_user.permissions:
-            db_user.permissions = db_user.permissions.split(',')
-        else:
-            db_user.permissions = []
-        
         return db_user
     
     @staticmethod
@@ -108,26 +119,41 @@ class UserService:
         return result
     
     @staticmethod
-    def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
-        print(f"Authenticating user: {username}")
-        user = UserService.get_user_by_username(db, username)
-        if not user:
-            print("User not found")
-            return None
-        
-        if not UserService.verify_password(password, user.hashed_password):
-            print("Password verification failed")
-            return None
-        
-        # 更新最后登录时间
+    def authenticate_user(db: Session, username: str, password: str):
+        """验证用户"""
+        try:
+            user = db.query(User).filter(User.username == username).first()
+            if not user or not UserService.verify_password(password, user.hashed_password):
+                return None
+            
+            # 检查用户是否被禁用
+            if not user.is_active:
+                raise ValueError("账号已被禁用")
+            
+            # 检查权限字符串格式
+            if user.permissions:
+                # 移除多余的括号和空格
+                permissions = user.permissions.strip('[]() ').split(',')
+                # 清理每个权限字符串
+                permissions = [p.strip('\'\" ') for p in permissions if p.strip()]
+                # 重新保存格式化后的权限字符串
+                user.permissions = ','.join(permissions)
+            
+            # 更新最后登录时间为本地时间
+            user.last_login = datetime.now()
+            db.commit()
+            
+            return user
+            
+        except Exception as e:
+            print(f"Error during authentication: {str(e)}")
+            db.rollback()
+            raise
+    
+    @staticmethod
+    def update_last_login(db: Session, user: User):
+        """更新用户最后登录时间"""
         user.last_login = datetime.now()
-        
-        # 店主账号不需要处理权限字段
-        if not user.is_owner:
-            # 只对非店主账号转换权限字符串为列表
-            user.permissions = user.permissions.split(',') if user.permissions else []
-        else:
-            user.permissions = []  # 店主账号权限列表为空
-        
         db.commit()
+        db.refresh(user)
         return user 

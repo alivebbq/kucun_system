@@ -1,0 +1,176 @@
+// 页面基础布局
+.page-container {
+    padding: 20px;
+    height: 100%;
+    box-sizing: border-box;
+    background-color: #f0f2f5;
+}
+
+// 顶部工具栏
+.toolbar {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.toolbar-left {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.toolbar-right {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+// 搜索输入框
+.search-input {
+    width: 250px;
+}
+
+// 卡片样式
+.content-card {
+    border-radius: 8px;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+    margin-bottom: 20px;
+}
+
+// 表格样式
+.table-header {
+    background: #f5f7fa !important;
+    color: #606266 !important;
+    font-weight: bold !important;
+    height: 50px;
+}
+
+// 标签样式
+.status-tag {
+    padding: 4px 12px;
+    border-radius: 12px;
+}
+
+// 按钮组样式
+.action-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+// 对话框样式
+.custom-dialog {
+    .el-dialog {
+        border-radius: 8px;
+
+        .el-dialog__header {
+            margin: 0;
+            padding: 20px;
+            border-bottom: 1px solid #dcdfe6;
+        }
+
+        .el-dialog__body {
+            padding: 20px;
+        }
+
+        .el-dialog__footer {
+            padding: 20px;
+            border-top: 1px solid #dcdfe6;
+        }
+    }
+}
+
+// 表单样式
+.custom-form {
+    .el-form-item__label {
+        font-weight: 500;
+    }
+
+    .el-input {
+        border-radius: 4px;
+    }
+}
+
+// 统计卡片样式
+.stat-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    height: 100%;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+
+    .stat-title {
+        color: #606266;
+        font-size: 14px;
+        margin-bottom: 8px;
+    }
+
+    .stat-value {
+        color: #303133;
+        font-size: 24px;
+        font-weight: bold;
+    }
+
+    .stat-compare {
+        margin-top: 8px;
+        font-size: 12px;
+
+        &.up {
+            color: #67C23A;
+        }
+
+        &.down {
+            color: #F56C6C;
+        }
+    }
+}
+
+// 图表容器样式
+.chart-container {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+
+    .chart-title {
+        font-size: 16px;
+        font-weight: 500;
+        color: #303133;
+        margin-bottom: 16px;
+    }
+}
+
+// 数字金额样式
+.amount {
+    font-family: DIN Alternate, Monaco, monospace;
+
+    &.positive {
+        color: #67C23A;
+    }
+
+    &.negative {
+        color: #F56C6C;
+    }
+}
+
+// 响应式布局
+@media screen and (max-width: 768px) {
+    .toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-input {
+        width: 100%;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+        width: 100%;
+    }
+}

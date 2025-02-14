@@ -89,24 +89,36 @@ def update_user(
     user_id: int,
     user_update: UserUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user = Depends(get_current_active_user)
 ):
-    """更新员工信息（仅店主可用）"""
-    if not current_user.is_owner:
-        raise HTTPException(
-            status_code=403,
-            detail="只有店主可以修改用户信息"
+    """更新用户信息"""
+    try:
+        # 获取要更新的用户
+        db_user = UserService.get_user(db, user_id)
+        if not db_user:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        
+        # 不允许修改店主账号
+        if db_user.is_owner:
+            raise HTTPException(status_code=403, detail="不能修改店主账号")
+        
+        # 确保只能修改同一个店铺的用户
+        if db_user.store_id != current_user.store_id:
+            raise HTTPException(status_code=403, detail="无权修改其他店铺的用户")
+        
+        result = UserService.update_user(
+            db=db,
+            username=db_user.username,  # 使用用户名而不是ID
+            user_update=user_update,
+            store_id=current_user.store_id
         )
-    
-    db_user = UserService.get_user(db, user_id)
-    if not db_user or db_user.store_id != current_user.store_id:
-        raise HTTPException(status_code=404, detail="用户不存在")
-    
-    # 不允许修改店主账号
-    if db_user.is_owner:
-        raise HTTPException(status_code=403, detail="不能修改店主账号")
-    
-    return UserService.update_user(db, user_id, user_update)
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="更新失败")
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/users/{user_id}")
 def delete_user(
