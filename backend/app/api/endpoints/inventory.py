@@ -10,6 +10,7 @@ from app.schemas.inventory import (
     Transaction, StockIn, StockOut, InventoryStats,
     TransactionResponse, PerformanceStats, ProductAnalysis
 )
+from app.core.auth import get_current_active_user
 
 router = APIRouter()
 
@@ -17,15 +18,20 @@ router = APIRouter()
 def list_inventory(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
 ):
     """获取库存列表"""
-    return InventoryService.get_inventory(db, skip=skip, limit=limit)
+    return InventoryService.get_inventory(db, current_user.store_id, skip=skip, limit=limit)
 
 @router.get("/inventory/{barcode}", response_model=Inventory)
-def get_inventory(barcode: str, db: Session = Depends(get_db)):
+def get_inventory(
+    barcode: str, 
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
     """根据条形码获取商品信息"""
-    db_inventory = InventoryService.get_inventory_by_barcode(db, barcode)
+    db_inventory = InventoryService.get_inventory_by_barcode(db, barcode, current_user.store_id)
     if db_inventory is None:
         raise HTTPException(status_code=404, detail="商品不存在")
     return db_inventory
@@ -33,22 +39,24 @@ def get_inventory(barcode: str, db: Session = Depends(get_db)):
 @router.post("/inventory/", response_model=Inventory)
 def create_inventory(
     inventory: InventoryCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
 ):
     """创建新商品"""
-    db_inventory = InventoryService.get_inventory_by_barcode(db, inventory.barcode)
+    db_inventory = InventoryService.get_inventory_by_barcode(db, inventory.barcode, current_user.store_id)
     if db_inventory:
         raise HTTPException(status_code=400, detail="商品已存在")
-    return InventoryService.create_inventory(db=db, inventory=inventory)
+    return InventoryService.create_inventory(db=db, inventory=inventory, store_id=current_user.store_id)
 
 @router.put("/inventory/{barcode}", response_model=Inventory)
 def update_inventory(
     barcode: str,
     inventory: InventoryUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
 ):
     """更新商品信息"""
-    db_inventory = InventoryService.update_inventory(db, barcode, inventory)
+    db_inventory = InventoryService.update_inventory(db, barcode, inventory, current_user.store_id)
     if db_inventory is None:
         raise HTTPException(status_code=404, detail="商品不存在")
     return db_inventory
@@ -56,18 +64,23 @@ def update_inventory(
 @router.post("/inventory/stock-in", response_model=Inventory)
 def stock_in(
     stock_in: StockIn,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
 ):
     """商品入库"""
-    db_inventory = InventoryService.stock_in(db, stock_in)
+    db_inventory = InventoryService.stock_in(db, stock_in, current_user.store_id)
     if db_inventory is None:
         raise HTTPException(status_code=404, detail="商品不存在")
     return db_inventory
 
 @router.post("/inventory/stock-out", response_model=Inventory)
-def stock_out(stock_out: StockOut, db: Session = Depends(get_db)):
+def stock_out(
+    stock_out: StockOut, 
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
     """商品出库"""
-    db_inventory = InventoryService.stock_out(db, stock_out)
+    db_inventory = InventoryService.stock_out(db, stock_out, current_user.store_id)
     if db_inventory is None:
         raise HTTPException(status_code=404, detail="商品不存在或库存不足")
     return db_inventory
@@ -85,11 +98,13 @@ def list_transactions(
     end_date: Optional[datetime] = None,
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
 ):
     """获取交易记录"""
     return InventoryService.get_transactions(
         db,
+        current_user.store_id,
         barcode=barcode,
         type=type,
         start_date=start_date,
@@ -101,10 +116,11 @@ def list_transactions(
 @router.delete("/inventory/{barcode}")
 def delete_inventory(
     barcode: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
 ):
     """删除商品"""
-    db_inventory = InventoryService.delete_inventory(db, barcode)
+    db_inventory = InventoryService.delete_inventory(db, barcode, current_user.store_id)
     if db_inventory is None:
         raise HTTPException(status_code=404, detail="商品不存在")
     return {"message": "删除成功"}
@@ -113,7 +129,8 @@ def delete_inventory(
 def get_performance_stats(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
 ):
     """获取业绩统计"""
     # 如果没有指定日期，默认统计当前月份
@@ -124,7 +141,7 @@ def get_performance_stats(
         end_date = next_month - timedelta(days=next_month.day)
         end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
-    return InventoryService.get_performance_stats(db, start_date, end_date)
+    return InventoryService.get_performance_stats(db, start_date, end_date, current_user.store_id)
 
 @router.get("/analysis/{barcode}", response_model=ProductAnalysis)
 def get_product_analysis(
@@ -137,4 +154,29 @@ def get_product_analysis(
     if not db_inventory:
         raise HTTPException(status_code=404, detail="商品不存在")
     
-    return InventoryService.get_product_analysis(db, barcode, months) 
+    return InventoryService.get_product_analysis(db, barcode, months)
+
+@router.get("/statistics")
+async def get_statistics(
+    current_user = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        # 打印调试信息
+        print(f"\n=== Getting Statistics for User ===")
+        print(f"User: {current_user.username}")
+        print(f"Store ID: {current_user.store_id}")
+        
+        # 获取统计数据
+        stats = InventoryService.get_statistics(db, current_user.store_id)
+        
+        print(f"Statistics: {stats}")
+        print("=== End Statistics Request ===\n")
+        
+        return stats
+    except Exception as e:
+        print(f"Error getting statistics: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting statistics: {str(e)}"
+        ) 

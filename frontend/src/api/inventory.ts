@@ -46,37 +46,37 @@ export interface TransactionResponse {
 
 // 获取库存列表
 export const getInventoryList = (params?: { skip?: number; limit?: number }) => {
-    return api.get<Inventory[]>('/inventory/', { params });
+    return api.get<Inventory[]>('/api/v1/inventory/', { params });
 };
 
 // 根据条形码获取商品
 export const getInventoryByBarcode = (barcode: string) => {
-    return api.get<Inventory>(`/inventory/${barcode}`);
+    return api.get<Inventory>(`/api/v1/inventory/${barcode}`);
 };
 
 // 创建商品
 export const createInventory = (data: Partial<Inventory>) => {
-    return api.post<Inventory>('/inventory/', data);
+    return api.post<Inventory>('/api/v1/inventory/', data);
 };
 
 // 更新商品
 export const updateInventory = (barcode: string, data: Partial<Inventory>) => {
-    return api.put<Inventory>(`/inventory/${barcode}`, data);
+    return api.put<Inventory>(`/api/v1/inventory/${barcode}`, data);
 };
 
 // 商品入库
 export const stockIn = (data: { barcode: string; quantity: number; price: number }) => {
-    return api.post<Inventory>('/inventory/stock-in', data);
+    return api.post<Inventory>('/api/v1/inventory/stock-in', data);
 };
 
 // 商品出库
 export const stockOut = (data: { barcode: string; quantity: number; price: number }) => {
-    return api.post<Inventory>('/inventory/stock-out', data);
+    return api.post<Inventory>('/api/v1/inventory/stock-out', data);
 };
 
 // 获取库存统计
 export const getInventoryStats = () => {
-    return api.get<InventoryStats>('/stats');
+    return api.get<InventoryStats>('/api/v1/stats');
 };
 
 // 获取交易记录
@@ -88,12 +88,12 @@ export const getTransactions = (params?: {
     skip?: number;
     limit?: number;
 }) => {
-    return api.get<TransactionResponse>('/transactions/', { params });
+    return api.get<TransactionResponse>('/api/v1/transactions/', { params });
 };
 
 // 删除商品
 export const deleteInventory = (barcode: string) => {
-    return api.delete<{ message: string }>(`/inventory/${barcode}`);
+    return api.delete<{ message: string }>(`/api/v1/inventory/${barcode}`);
 };
 
 // 业绩统计相关类型定义
@@ -128,7 +128,7 @@ export interface PerformanceStats {
 
 // 业绩统计 API
 export const getPerformanceStats = (params?: { start_date?: string; end_date?: string }) => {
-    return api.get<PerformanceStats>('/performance/', { params });
+    return api.get<PerformanceStats>('/api/v1/performance/', { params });
 };
 
 export interface HotProduct {
@@ -158,7 +158,7 @@ export interface ProductAnalysis {
 
 // 商品分析 API
 export const getProductAnalysis = (barcode: string, months: number = 1) => {
-    return api.get<ProductAnalysis>(`/analysis/${barcode}`, {
+    return api.get<ProductAnalysis>(`/api/v1/analysis/${barcode}`, {
         params: { months }
     });
 }; 

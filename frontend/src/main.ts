@@ -30,6 +30,7 @@ import {
     DataLine,
     TrendCharts
 } from '@element-plus/icons-vue'
+import { createPinia } from 'pinia'
 
 // 手动注册 ECharts 需要的组件
 use([
@@ -43,6 +44,7 @@ use([
 ])
 
 const app = createApp(App)
+app.use(createPinia())
 
 // 注册 ECharts 组件
 app.component('v-chart', ECharts)

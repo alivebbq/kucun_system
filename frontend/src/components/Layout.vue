@@ -3,7 +3,7 @@
     <!-- 侧边栏 -->
     <el-aside width="180px">
       <el-menu :default-active="route.path" router class="menu">
-        <el-menu-item v-for="item in menuItems" :key="item.path" :index="'/' + item.path">
+        <el-menu-item v-for="item in filteredMenuItems" :key="item.path" :index="'/' + item.path">
           <el-icon>
             <component :is="item.meta.icon" />
           </el-icon>
@@ -17,6 +17,10 @@
       <el-header height="60px">
         <div class="header-content">
           <h2>库存管理系统</h2>
+          <div class="user-info">
+            <span>{{ userStore.user?.name || userStore.user?.username }}</span>
+            <el-button type="text" @click="handleLogout">退出</el-button>
+          </div>
         </div>
       </el-header>
       <el-main>
@@ -29,15 +33,41 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useUserStore } from '../stores/user';
+import { ElMessageBox } from 'element-plus';
 
 const route = useRoute();
 const router = useRouter();
+const userStore = useUserStore();
 
-// 获取菜单项
-const menuItems = computed(() => {
+// 根据权限过滤菜单项
+const filteredMenuItems = computed(() => {
   const mainRoute = router.options.routes.find(r => r.path === '/');
-  return mainRoute?.children || [];
+  return mainRoute?.children?.filter(item => {
+    if (item.meta?.requiresOwner) {
+      return userStore.isOwner;
+    }
+    if (item.meta?.permission) {
+      return userStore.hasPermission(item.meta.permission as string);
+    }
+    return true;
+  }) || [];
 });
+
+// 处理退出登录
+const handleLogout = async () => {
+  try {
+    await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+    userStore.logout();
+    router.push('/login');
+  } catch {
+    // 用户取消退出
+  }
+};
 </script>
 
 <style scoped>
@@ -82,5 +112,15 @@ const menuItems = computed(() => {
 .el-header {
   background-color: #fff;
   border-bottom: 1px solid #dcdfe6;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-info span {
+  color: #606266;
 }
 </style>

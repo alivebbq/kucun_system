@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, CheckConstraint, Float
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, CheckConstraint
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.db.session import Base
 
 class Inventory(Base):
@@ -13,6 +14,10 @@ class Inventory(Base):
     warning_stock = Column(Integer, default=10)  # 警戒库存
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
+    
+    # 使用字符串引用避免循环导入
+    store = relationship("Store", back_populates="inventory")
 
 class Transaction(Base):
     __tablename__ = "transactions"
@@ -24,6 +29,10 @@ class Transaction(Base):
     price = Column(Numeric(10, 2), nullable=False)
     total = Column(Numeric(10, 2), nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
+    
+    # 使用字符串引用避免循环导入
+    store = relationship("Store", back_populates="transactions")
     
     __table_args__ = (
         CheckConstraint(type.in_(['in', 'out']), name='check_transaction_type'),

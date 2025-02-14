@@ -117,6 +117,7 @@ import { ref, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { CircleCheckFilled } from '@element-plus/icons-vue';
 import { getInventoryStats, type HotProduct } from '../api/inventory';
+import { api } from '../api/config';
 
 interface LowStockItem {
   barcode: string;
@@ -149,19 +150,30 @@ const formatNumber = (num: number) => {
   });
 };
 
-const loadStats = async () => {
+const loading = ref(false);
+
+const loadStatistics = async () => {
   try {
-    const response = await getInventoryStats();
-    console.log('Hot products:', response.hot_products);  // 添加调试日志
+    loading.value = true;
+    console.log('=== Loading Statistics ===');
+    const response = await api.get('/api/v1/statistics');
+    console.log('Statistics response:', response);
     stats.value = response;
-  } catch (error) {
-    console.error('加载统计数据失败:', error);
-    ElMessage.error('加载统计数据失败');
+  } catch (error: any) {
+    console.error('Error loading statistics:', {
+      error,
+      response: error.response,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    ElMessage.error(error.response?.data?.detail || '加载统计数据失败');
+  } finally {
+    loading.value = false;
   }
 };
 
 onMounted(() => {
-  loadStats();
+  loadStatistics();
 });
 
 // 设置表格最大高度

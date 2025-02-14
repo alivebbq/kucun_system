@@ -17,18 +17,27 @@ from app.schemas.inventory import (
 
 class InventoryService:
     @staticmethod
-    def get_inventory(db: Session, skip: int = 0, limit: int = 100):
-        return db.query(Inventory).offset(skip).limit(limit).all()
+    def get_inventory(db: Session, store_id: int, skip: int = 0, limit: int = 100):
+        return db.query(Inventory)\
+            .filter(Inventory.store_id == store_id)\
+            .offset(skip)\
+            .limit(limit)\
+            .all()
     
     @staticmethod
-    def get_inventory_by_barcode(db: Session, barcode: str):
-        return db.query(Inventory).filter(Inventory.barcode == barcode).first()
+    def get_inventory_by_barcode(db: Session, barcode: str, store_id: int):
+        return db.query(Inventory)\
+            .filter(
+                Inventory.barcode == barcode,
+                Inventory.store_id == store_id
+            ).first()
     
     @staticmethod
-    def create_inventory(db: Session, inventory: InventoryCreate):
+    def create_inventory(db: Session, inventory: InventoryCreate, store_id: int):
         db_inventory = Inventory(
             **inventory.model_dump(),
-            stock=0
+            stock=0,
+            store_id=store_id
         )
         db.add(db_inventory)
         db.commit()
@@ -36,8 +45,8 @@ class InventoryService:
         return db_inventory
     
     @staticmethod
-    def update_inventory(db: Session, barcode: str, inventory: InventoryUpdate):
-        db_inventory = InventoryService.get_inventory_by_barcode(db, barcode)
+    def update_inventory(db: Session, barcode: str, inventory: InventoryUpdate, store_id: int):
+        db_inventory = InventoryService.get_inventory_by_barcode(db, barcode, store_id)
         if not db_inventory:
             return None
         
@@ -50,8 +59,8 @@ class InventoryService:
         return db_inventory
     
     @staticmethod
-    def stock_in(db: Session, stock_in: StockIn):
-        db_inventory = InventoryService.get_inventory_by_barcode(db, stock_in.barcode)
+    def stock_in(db: Session, stock_in: StockIn, store_id: int):
+        db_inventory = InventoryService.get_inventory_by_barcode(db, stock_in.barcode, store_id)
         if not db_inventory:
             return None
         
@@ -64,7 +73,8 @@ class InventoryService:
             type="in",
             quantity=stock_in.quantity,
             price=stock_in.price,
-            total=stock_in.quantity * stock_in.price
+            total=stock_in.quantity * stock_in.price,
+            store_id=store_id
         )
         
         db.add(transaction)
@@ -73,8 +83,8 @@ class InventoryService:
         return db_inventory
     
     @staticmethod
-    def stock_out(db: Session, stock_out: StockOut):
-        db_inventory = InventoryService.get_inventory_by_barcode(db, stock_out.barcode)
+    def stock_out(db: Session, stock_out: StockOut, store_id: int):
+        db_inventory = InventoryService.get_inventory_by_barcode(db, stock_out.barcode, store_id)
         if not db_inventory:
             raise HTTPException(status_code=404, detail="Inventory not found")
         
@@ -90,13 +100,13 @@ class InventoryService:
             type="out",
             quantity=stock_out.quantity,
             price=stock_out.price,
-            total=stock_out.quantity * stock_out.price
+            total=stock_out.quantity * stock_out.price,
+            store_id=store_id
         )
         
         db.add(transaction)
         db.commit()
         db.refresh(db_inventory)
-        
         return db_inventory
     
     @staticmethod
@@ -170,6 +180,7 @@ class InventoryService:
     @staticmethod
     def get_transactions(
         db: Session,
+        store_id: int,
         barcode: Optional[str] = None,
         type: Optional[str] = None,
         start_date: Optional[datetime] = None,
@@ -179,7 +190,8 @@ class InventoryService:
     ):
         # 基础查询
         base_query = db.query(Transaction, Inventory.name)\
-            .join(Inventory, Transaction.barcode == Inventory.barcode)
+            .join(Inventory, Transaction.barcode == Inventory.barcode)\
+            .filter(Transaction.store_id == store_id)
         
         # 添加过滤条件
         if barcode:
@@ -200,35 +212,35 @@ class InventoryService:
             .limit(limit)\
             .all()
         
-        # 将结果转换为字典格式
-        transactions = []
-        for transaction, name in results:
-            transaction_dict = {
-                "id": transaction.id,
-                "barcode": transaction.barcode,
-                "name": name,
-                "type": transaction.type,
-                "quantity": transaction.quantity,
-                "price": transaction.price,
-                "total": transaction.total,
-                "timestamp": transaction.timestamp
-            }
-            transactions.append(transaction_dict)
-        
         return {
-            "items": transactions,
+            "items": [
+                {
+                    "id": transaction.id,
+                    "barcode": transaction.barcode,
+                    "name": name,
+                    "type": transaction.type,
+                    "quantity": transaction.quantity,
+                    "price": transaction.price,
+                    "total": transaction.total,
+                    "timestamp": transaction.timestamp
+                }
+                for transaction, name in results
+            ],
             "total": total
         }
     
     @staticmethod
-    def delete_inventory(db: Session, barcode: str):
-        db_inventory = InventoryService.get_inventory_by_barcode(db, barcode)
+    def delete_inventory(db: Session, barcode: str, store_id: int):
+        db_inventory = InventoryService.get_inventory_by_barcode(db, barcode, store_id)
         if not db_inventory:
             return None
         
         try:
             # 先删除关联的交易记录
-            db.query(Transaction).filter(Transaction.barcode == barcode).delete()
+            db.query(Transaction).filter(
+                Transaction.barcode == barcode,
+                Transaction.store_id == store_id
+            ).delete()
             # 再删除商品
             db.delete(db_inventory)
             db.commit()
@@ -244,16 +256,18 @@ class InventoryService:
     def get_performance_stats(
         db: Session,
         start_date: datetime,
-        end_date: datetime
+        end_date: datetime,
+        store_id: int
     ) -> dict:
         # 修改利润计算逻辑，使用实际交易记录
         profit_rankings = []
-        for inv in db.query(Inventory).all():
+        for inv in db.query(Inventory).filter(Inventory.store_id == store_id).all():
             # 获取销售记录
             out_records = db.query(Transaction)\
                 .filter(
                     Transaction.barcode == inv.barcode,
                     Transaction.type == 'out',
+                    Transaction.store_id == store_id,
                     Transaction.timestamp.between(start_date, end_date)
                 ).all()
             
@@ -262,6 +276,7 @@ class InventoryService:
                 .filter(
                     Transaction.barcode == inv.barcode,
                     Transaction.type == 'in',
+                    Transaction.store_id == store_id,
                     Transaction.timestamp <= end_date
                 ).order_by(Transaction.timestamp.asc()).all()
             
@@ -300,7 +315,8 @@ class InventoryService:
         ).join(Inventory, Transaction.barcode == Inventory.barcode)\
         .filter(
             Transaction.timestamp.between(start_date, end_date),
-            Transaction.type == 'out'
+            Transaction.type == 'out',
+            Transaction.store_id == store_id
         ).group_by(Transaction.barcode, Inventory.name)
 
         for barcode, name, quantity, revenue in sales_query:
@@ -326,7 +342,10 @@ class InventoryService:
                 (Transaction.type == 'out', Transaction.total),
                 else_=0
             )).label('total_sales')
-        ).filter(Transaction.timestamp.between(start_date, end_date)).first()
+        ).filter(
+            Transaction.timestamp.between(start_date, end_date),
+            Transaction.store_id == store_id
+        ).first()
 
         total_purchase = (summary_query[0] or Decimal('0')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         total_sales = (summary_query[1] or Decimal('0')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -383,7 +402,7 @@ class InventoryService:
         }
     
     @staticmethod
-    def get_hot_products(db: Session) -> List[dict]:
+    def get_hot_products(db: Session, store_id: int) -> List[dict]:
         # 获取近7天的日期范围
         end_date = datetime.now()
         start_date = end_date - timedelta(days=7)
@@ -398,6 +417,7 @@ class InventoryService:
             Inventory, Transaction.barcode == Inventory.barcode
         ).filter(
             Transaction.type == 'out',
+            Transaction.store_id == store_id,
             Transaction.timestamp.between(start_date, end_date)
         ).group_by(
             Transaction.barcode,
@@ -515,4 +535,83 @@ class InventoryService:
         return {
             "price_trends": price_trends,
             "sales_analysis": sales_analysis
-        } 
+        }
+    
+    @staticmethod
+    def get_statistics(db: Session, store_id: int) -> dict:
+        """获取仪表盘统计数据"""
+        try:
+            # 计算库存总值（使用最近的进货价格）
+            inventory_values = []
+            for inv in db.query(Inventory).filter(Inventory.store_id == store_id).all():
+                last_in_price = db.query(Transaction.price)\
+                    .filter(
+                        Transaction.barcode == inv.barcode,
+                        Transaction.type == 'in',
+                        Transaction.store_id == store_id
+                    )\
+                    .order_by(Transaction.timestamp.desc())\
+                    .first()
+                if last_in_price:
+                    inventory_values.append(inv.stock * last_in_price[0])
+            
+            total_value = sum(inventory_values, Decimal('0'))
+            
+            # 获取今日销售额
+            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_sales = db.query(
+                func.sum(Transaction.total)
+            ).filter(
+                Transaction.type == 'out',
+                Transaction.store_id == store_id,
+                Transaction.timestamp >= today_start
+            ).scalar() or Decimal('0')
+            
+            # 获取近7天销售额
+            week_start = datetime.now() - timedelta(days=7)
+            week_sales = db.query(
+                func.sum(Transaction.total)
+            ).filter(
+                Transaction.type == 'out',
+                Transaction.store_id == store_id,
+                Transaction.timestamp >= week_start
+            ).scalar() or Decimal('0')
+            
+            # 获取库存预警商品
+            low_stock_items = db.query(
+                Inventory.barcode,
+                Inventory.name,
+                Inventory.stock,
+                Inventory.warning_stock,
+                Inventory.unit
+            ).filter(
+                Inventory.store_id == store_id,
+                Inventory.stock <= Inventory.warning_stock
+            ).all()
+            
+            # 转换为字典列表
+            low_stock_list = [
+                {
+                    "barcode": item.barcode,
+                    "name": item.name,
+                    "stock": item.stock,
+                    "warning_stock": item.warning_stock,
+                    "unit": item.unit
+                }
+                for item in low_stock_items
+            ]
+            
+            # 获取热销产品
+            hot_products = InventoryService.get_hot_products(db, store_id)
+            
+            return {
+                "total_value": total_value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+                "today_sales": today_sales.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+                "week_sales": week_sales.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+                "low_stock_items": low_stock_list,
+                "hot_products": hot_products
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting statistics: {str(e)}")
+            raise 
