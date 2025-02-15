@@ -1,58 +1,86 @@
 <template>
-    <div class="product-analysis">
-        <!-- 搜索区域 -->
-        <el-card class="search-area">
-            <div class="search-form">
-                <!-- 左侧：搜索和选择区域 -->
-                <div class="search-controls">
-                    <el-autocomplete
-                        v-model="searchBarcode"
-                        :fetch-suggestions="querySearch"
-                        placeholder="请输入商品条形码或名称"
-                        :trigger-on-focus="false"
-                        @select="handleSelect"
-                        @keyup.enter="handleSearch"
-                        class="barcode-input"
-                    >
-                        <template #default="{ item }">
-                            <div class="search-item">
-                                <div class="name">{{ item.name }}</div>
-                                <div class="info">
-                                    <span>条码: {{ item.barcode }}</span>
-                                    <span>库存: {{ item.stock }}{{ item.unit }}</span>
+    <div class="page-container">
+        <!-- 顶部工具栏 -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <el-form :inline="true" class="search-form">
+                    <el-form-item label="商品">
+                        <el-autocomplete
+                            v-model="searchQuery"
+                            :fetch-suggestions="querySearch"
+                            placeholder="输入商品名称或条形码"
+                            :trigger-on-focus="false"
+                            clearable
+                            class="search-input"
+                            @select="handleSelect"
+                        >
+                            <template #prefix>
+                                <el-icon><Search /></el-icon>
+                            </template>
+                            <template #default="{ item }">
+                                <div class="search-item">
+                                    <div class="name">{{ item.name }}</div>
+                                    <div class="info">
+                                        <span>条形码: {{ item.barcode }}</span>
+                                        <span>库存: {{ item.stock }}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        </template>
-                        <template #append>
-                            <el-button @click="handleSearch">
-                                <el-icon>
-                                    <Search />
-                                </el-icon>
-                            </el-button>
-                        </template>
-                    </el-autocomplete>
-
-                    <el-select v-model="timeRange" class="time-range">
-                        <el-option label="最近1个月" value="1" />
-                        <el-option label="最近3个月" value="3" />
-                        <el-option label="最近半年" value="6" />
-                        <el-option label="最近1年" value="12" />
-                    </el-select>
-                </div>
-
-                <!-- 右侧：商品信息 -->
-                <div v-if="currentProduct" class="product-info">
-                    <el-descriptions :column="3" size="small" border>
-                        <el-descriptions-item label="商品名称">{{ currentProduct.name }}</el-descriptions-item>
-                        <el-descriptions-item label="单位">{{ currentProduct.unit }}</el-descriptions-item>
-                        <el-descriptions-item label="当前库存">{{ currentProduct.stock }}</el-descriptions-item>
-                    </el-descriptions>
-                </div>
+                            </template>
+                        </el-autocomplete>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" @click="showProductList">
+                            <el-icon><List /></el-icon>
+                            选择商品
+                        </el-button>
+                    </el-form-item>
+                    <!-- 修改时间范围的选择方式 -->
+                    <el-form-item label="时间范围">
+                        <el-select 
+                            v-model="timeRange" 
+                            class="time-range"
+                            @change="handleTimeRangeChange"
+                        >
+                            <el-option label="最近一个月" value="1" />
+                            <el-option label="最近一季度" value="3" />
+                            <el-option label="最近半年" value="6" />
+                            <el-option label="最近一年" value="12" />
+                        </el-select>
+                    </el-form-item>
+                </el-form>
             </div>
-        </el-card>
+        </div>
 
-        <!-- 图表区域 -->
-        <div v-if="currentProduct" class="charts-container">
+        <!-- 商品列表对话框 -->
+        <el-dialog
+            v-model="productListVisible"
+            title="选择商品"
+            width="80%"
+            class="custom-dialog"
+        >
+            <el-table
+                :data="productList"
+                style="width: 100%"
+                height="500px"
+                :header-cell-class-name="'table-header'"
+                @row-click="handleProductSelect"
+            >
+                <el-table-column prop="barcode" label="条形码" width="150" />
+                <el-table-column prop="name" label="商品名称" />
+                <el-table-column prop="unit" label="单位" width="100" />
+                <el-table-column prop="stock" label="库存" width="100" align="right" />
+                <el-table-column label="状态" width="100">
+                    <template #default="{ row }">
+                        <el-tag :type="row.is_active ? 'success' : 'danger'">
+                            {{ row.is_active ? '启用' : '禁用' }}
+                        </el-tag>
+                    </template>
+                </el-table-column>
+            </el-table>
+        </el-dialog>
+
+        <!-- 保留原有的分析图表内容 -->
+        <div v-if="currentProduct" class="analysis-content">
             <!-- 价格趋势图 -->
             <el-card class="chart-card">
                 <template #header>
@@ -81,9 +109,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Search } from '@element-plus/icons-vue';
+import { Search, List } from '@element-plus/icons-vue';
 import VChart from 'vue-echarts';
 import { use } from 'echarts/core';
 import { LineChart, BarChart } from 'echarts/charts';
@@ -94,8 +122,8 @@ import {
     GridComponent
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
-import { getInventoryByBarcode, getProductAnalysis, searchInventory } from '../api/inventory';
-import type { Inventory, ProductAnalysis } from '../api/inventory';
+import { getInventoryByBarcode, getProductAnalysis, searchInventory, getInventoryList, type Inventory } from '../api/inventory';
+import type { ProductAnalysis } from '../api/inventory';
 
 // 注册 ECharts 组件
 use([
@@ -108,6 +136,9 @@ use([
     GridComponent
 ]);
 
+const searchQuery = ref('');
+const productListVisible = ref(false);
+const productList = ref<Inventory[]>([]);
 const searchBarcode = ref('');
 const timeRange = ref('1');
 const currentProduct = ref<Inventory | null>(null);
@@ -364,7 +395,10 @@ const handleSearch = async () => {
         currentProduct.value = null;
 
         // 获取新商品数据
-        currentProduct.value = await getInventoryByBarcode(searchBarcode.value);
+        const response = await getInventoryByBarcode(searchBarcode.value);
+        // 直接使用 response，不需要 .data
+        currentProduct.value = response;
+        
         if (currentProduct.value) {
             await loadAnalysisData();
         }
@@ -381,11 +415,58 @@ const loadAnalysisData = async () => {
 
     try {
         const months = parseInt(timeRange.value);
-        const data = await getProductAnalysis(currentProduct.value.barcode, months);
+        const response = await getProductAnalysis(currentProduct.value.barcode, months);
+        const data = response;
 
         // 反转数据，使最新的数据显示在右边
         const priceTrends = [...data.price_trends].reverse();
         const salesAnalysis = [...data.sales_analysis].reverse();
+
+        // 找到第一次入库和出库的日期
+        let firstInDate = null;
+        let firstOutDate = null;
+        
+        for (const trend of priceTrends) {
+            if (!firstInDate && trend.cost > 0) {
+                firstInDate = new Date(trend.date);
+            }
+            if (!firstOutDate && trend.price > 0) {
+                firstOutDate = new Date(trend.date);
+            }
+            if (firstInDate && firstOutDate) break;
+        }
+
+        // 处理价格数据
+        let lastCost = 0;
+        let lastPrice = 0;
+        
+        const processedPriceTrends = priceTrends.map(trend => {
+            const currentDate = new Date(trend.date);
+            
+            // 处理成本价
+            if (firstInDate && currentDate >= firstInDate) {
+                if (trend.cost > 0) {
+                    lastCost = trend.cost;
+                }
+            } else {
+                lastCost = 0;
+            }
+
+            // 处理售价
+            if (firstOutDate && currentDate >= firstOutDate) {
+                if (trend.price > 0) {
+                    lastPrice = trend.price;
+                }
+            } else {
+                lastPrice = 0;
+            }
+            
+            return {
+                ...trend,
+                cost: lastCost,
+                price: lastPrice
+            };
+        });
 
         // 确保所有数据都被正确处理
         const processedSales = salesAnalysis.map(s => s.sales);
@@ -393,9 +474,9 @@ const loadAnalysisData = async () => {
 
         // 更新数据
         priceData.value = {
-            dates: priceTrends.map(p => formatDate(p.date)),
-            costs: priceTrends.map(p => p.cost),
-            prices: priceTrends.map(p => p.price)
+            dates: processedPriceTrends.map(p => formatDate(p.date)),
+            costs: processedPriceTrends.map(p => p.cost),
+            prices: processedPriceTrends.map(p => p.price)
         };
 
         profitData.value = {
@@ -421,12 +502,12 @@ const loadAnalysisData = async () => {
     }
 };
 
-// 监听时间范围变化
-watch(timeRange, () => {
+// 处理时间范围变化
+const handleTimeRangeChange = () => {
     if (currentProduct.value) {
         loadAnalysisData();
     }
-});
+};
 
 // 搜索建议
 const querySearch = async (queryString: string, cb: (arg: any[]) => void) => {
@@ -437,7 +518,13 @@ const querySearch = async (queryString: string, cb: (arg: any[]) => void) => {
 
     try {
         const response = await searchInventory(queryString);
-        cb(response);
+        // 直接使用 response，不需要 .data
+        const suggestions = response.map(item => ({
+            value: item.barcode,
+            label: `${item.name} (${item.barcode})`,
+            ...item
+        }));
+        cb(suggestions);
     } catch (error) {
         console.error('搜索商品失败:', error);
         cb([]);
@@ -446,81 +533,72 @@ const querySearch = async (queryString: string, cb: (arg: any[]) => void) => {
 
 // 选择商品
 const handleSelect = (item: Inventory) => {
+    searchQuery.value = item.name;
     searchBarcode.value = item.barcode;
-    handleSearch();  // 自动触发搜索
+    handleSearch();
+};
+
+// 显示商品列表
+const showProductList = async () => {
+    try {
+        const response = await getInventoryList();
+        // 直接使用 response，不需要 .data
+        productList.value = response;
+        productListVisible.value = true;
+    } catch (error) {
+        console.error('加载商品列表失败:', error);
+        ElMessage.error('加载商品列表失败');
+    }
+};
+
+// 从列表选择商品
+const handleProductSelect = (row: Inventory) => {
+    searchQuery.value = row.name;
+    searchBarcode.value = row.barcode;
+    productListVisible.value = false;
+    handleSearch();
 };
 </script>
 
 <style scoped>
-.product-analysis {
-    padding: 10px 20px;
+.page-container {
+    padding: 20px;
     height: 100%;
     width: 100%;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 20px;
 }
 
-.search-area {
+.toolbar {
     flex-shrink: 0;
-    width: 100%;
-    height: 80px !important;
-    /* 设置固定高度 */
 }
 
 .search-form {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 20px;
-    max-width: 1600px;
-    margin: 0 auto;
-    height: 100%;
-    /* 让表单占满卡片高度 */
-}
-
-.search-controls {
-    display: flex;
-    gap: 15px;
+    gap: 12px;
     align-items: center;
 }
 
-.barcode-input {
-    width: 300px;
-}
-
-.time-range {
-    width: 150px;
-}
-
-.product-info {
-    flex: 1;
-    min-width: 500px;
-}
-
-.charts-container {
+.analysis-content {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 15px;
-    overflow: hidden;
-    min-height: 900px;
-    width: 100%;
-    max-width: 1800px;
-    margin: 0 auto;
+    gap: 20px;
+    min-height: 800px; /* 确保有最小高度 */
 }
 
 .chart-card {
     flex: 1;
+    min-height: 400px;
     display: flex;
     flex-direction: column;
-    min-height: 420px;
 }
 
 .chart-wrapper {
     flex: 1;
-    min-height: 380px;
+    min-height: 350px;
     position: relative;
 }
 
@@ -532,59 +610,25 @@ const handleSelect = (item: Inventory) => {
     height: 100%;
 }
 
-.card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-/* 禁用 Element Plus 的过渡动画 */
+/* Element Plus 卡片样式覆盖 */
 :deep(.el-card) {
-    transition: none !important;
-    width: 100%;
     height: 100%;
-    box-shadow: 0 1px 4px rgba(0, 21, 41, .08);
-    /* 更细腻的阴影 */
+    display: flex;
+    flex-direction: column;
 }
 
 :deep(.el-card__header) {
-    padding: 8px;
-    /* 减小卡片头部内边距 */
+    padding: 12px 20px;
+    border-bottom: 1px solid #ebeef5;
 }
 
 :deep(.el-card__body) {
-    height: calc(100% - 40px);
-    /* 减去header高度 */
-    padding: 5px 10px;
-    /* 减小卡片内容区内边距 */
+    flex: 1;
+    padding: 20px;
+    overflow: hidden;
 }
 
-:deep(.el-descriptions) {
-    margin: 0;
-    height: 100%;
-}
-
-:deep(.el-descriptions__cell) {
-    padding: 2px 8px !important;
-    /* 进一步减小单元格内边距 */
-}
-
-:deep(.el-descriptions__label) {
-    width: 70px;
-    /* 固定标签宽度 */
-}
-
-:deep(.el-descriptions__body) {
-    background-color: transparent;
-}
-
-/* 调整搜索区域卡片的样式 */
-.search-area:deep(.el-card__body) {
-    padding: 8px 15px;
-    height: 100%;
-    /* 让卡片内容区域占满高度 */
-}
-
+/* 搜索相关样式 */
 .search-item {
     padding: 4px 0;
 }
@@ -601,6 +645,17 @@ const handleSelect = (item: Inventory) => {
 }
 
 :deep(.el-autocomplete) {
-    width: 100%;
+    width: 300px;
+}
+
+/* 图表容器样式 */
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.time-range {
+    width: 140px;
 }
 </style>

@@ -22,6 +22,7 @@
                   <div class="name">{{ item.name }}</div>
                   <div class="info">
                     <span>条形码: {{ item.barcode }}</span>
+                    <span>库存: {{ item.stock }}</span>
                   </div>
                 </div>
               </template>
@@ -54,6 +55,10 @@
             />
           </el-form-item>
           <el-form-item>
+            <el-button type="primary" @click="showProductList">
+              <el-icon><List /></el-icon>
+              选择商品
+            </el-button>
             <el-button type="primary" @click="handleSearch">
               <el-icon><Search /></el-icon>
               查询
@@ -66,6 +71,34 @@
         </el-form>
       </div>
     </div>
+
+    <!-- 添加商品列表对话框 -->
+    <el-dialog
+      v-model="productListVisible"
+      title="选择商品"
+      width="80%"
+      class="custom-dialog"
+    >
+      <el-table
+        :data="productList"
+        style="width: 100%"
+        height="500px"
+        :header-cell-class-name="'table-header'"
+        @row-click="handleProductSelect"
+      >
+        <el-table-column prop="barcode" label="条形码" width="150" />
+        <el-table-column prop="name" label="商品名称" />
+        <el-table-column prop="unit" label="单位" width="100" />
+        <el-table-column prop="stock" label="库存" width="100" align="right" />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.is_active ? 'success' : 'danger'">
+              {{ row.is_active ? '启用' : '禁用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
 
     <!-- 交易记录表格 -->
     <el-card class="content-card">
@@ -136,8 +169,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Search, Refresh } from '@element-plus/icons-vue';
-import { getTransactions, cancelTransaction, searchInventory } from '../api/inventory';
+import { Search, Refresh, List } from '@element-plus/icons-vue';
+import { getTransactions, cancelTransaction, searchInventory, getInventoryList } from '../api/inventory';
+import type { Inventory } from '../types/inventory';
 
 const loading = ref(false);
 const transactions = ref([]);
@@ -286,13 +320,38 @@ const handleCurrentChange = (val: number) => {
   loadTransactions();
 };
 
+// 添加新的响应式变量
+const productListVisible = ref(false);
+const productList = ref<Inventory[]>([]);
+
+// 显示商品列表
+const showProductList = async () => {
+  try {
+    const response = await getInventoryList();
+    productList.value = response;
+    productListVisible.value = true;
+  } catch (error) {
+    console.error('加载商品列表失败:', error);
+    ElMessage.error('加载商品列表失败');
+  }
+};
+
+// 从列表选择商品
+const handleProductSelect = (row: Inventory) => {
+  searchQuery.value = row.name;
+  filters.value.barcode = row.barcode;
+  productListVisible.value = false;
+  handleSearch();
+};
+
 // 搜索商品
 const searchProduct = async (query: string) => {
   if (!query) return [];
   try {
-    const items = await searchInventory(query);
-    return items.map(item => ({
+    const response = await searchInventory(query);
+    return response.map((item: Inventory) => ({
       value: item.barcode,
+      label: `${item.name} (${item.barcode})`,
       ...item
     }));
   } catch (error) {
@@ -303,6 +362,7 @@ const searchProduct = async (query: string) => {
 
 // 选择商品
 const handleSelect = (item: any) => {
+  searchQuery.value = item.name;
   filters.value.barcode = item.barcode;
   handleSearch();
 };
@@ -352,6 +412,8 @@ loadTransactions();
   .info {
     font-size: 12px;
     color: #666;
+    display: flex;
+    gap: 10px;
   }
 }
 
@@ -363,6 +425,10 @@ loadTransactions();
 
 .type-select {
   width: 120px;
+}
+
+.search-input {
+  width: 300px;
 }
 
 // 其他样式已在 common.scss 中定义

@@ -182,6 +182,11 @@
         </el-table-column>
       </el-table>
     </el-dialog>
+
+    <!-- 可以添加一个库存提示 -->
+    <div v-if="currentProduct" class="stock-hint">
+      当前库存: {{ currentProduct.stock }}{{ currentProduct.unit }}
+    </div>
   </div>
 </template>
 
@@ -212,37 +217,40 @@ const form = ref({
   price: ''
 });
 
-const rules: FormRules = {
+// 表单验证规则
+const rules = {
   barcode: [
-    { required: true, message: '请输入条形码', trigger: 'blur' }
+    { required: true, message: '请选择商品', trigger: 'change' }
   ],
   quantity: [
     { required: true, message: '请输入数量', trigger: 'blur' },
-    {
-      validator: (rule: any, value: string) => {
+    { 
+      validator: async (rule: any, value: string) => {
+        if (!value) return;
+        
         const num = parseInt(value);
         if (isNaN(num) || num <= 0) {
           return Promise.reject('请输入大于0的数量');
         }
-        if (num > currentProduct.value?.stock) {
-          return Promise.reject(`出库数量不能超过当前库存(${currentProduct.value.stock})`);
+        
+        // 检查是否超过库存
+        if (currentProduct.value && num > currentProduct.value.stock) {
+          return Promise.reject(`出库数量不能超过当前库存(${currentProduct.value.stock}${currentProduct.value.unit})`);
         }
-        return Promise.resolve();
-      },
-      trigger: 'blur'
+      }
     }
   ],
   price: [
     { required: true, message: '请输入单价', trigger: 'blur' },
     {
-      validator: (rule: any, value: string) => {
+      validator: async (rule: any, value: string) => {
+        if (!value) return;
+        
         const num = parseFloat(value);
         if (isNaN(num) || num < 0) {
           return Promise.reject('请输入有效的单价');
         }
-        return Promise.resolve();
-      },
-      trigger: 'blur'
+      }
     }
   ]
 };
@@ -314,30 +322,30 @@ const showProductList = async () => {
 };
 
 // 选择商品
-const handleSelect = (item: any) => {
-  if (!item.is_active) {
-    ElMessage.warning('该商品已禁用，无法选择');
-    searchQuery.value = '';
-    return;
-  }
+const handleSelect = async (item: any) => {
   currentProduct.value = item;
   form.value.barcode = item.barcode;
+  
+  // 重置数量，因为可能之前有超过库存的值
+  form.value.quantity = '';
+  
+  // 验证表单
+  if (formRef.value) {
+    formRef.value.validateField('quantity');
+  }
 };
 
-// 处理数量输入
-const handleQuantityInput = (value: string) => {
-  // 只允许输入正整数
-  const newValue = value.replace(/[^\d]/g, '');
-  if (newValue === '') {
+// 监听数量输入
+const handleQuantityInput = (newValue: string) => {
+  if (!newValue) {
     form.value.quantity = '';
-  } else {
-    const num = parseInt(newValue);
-    // 限制最大数量为当前库存
-    if (num > currentProduct.value?.stock) {
-      form.value.quantity = currentProduct.value.stock;
-    } else {
-      form.value.quantity = num > 0 ? num : '';
-    }
+    return;
+  }
+
+  // 只允许输入数字
+  if (!/^\d*$/.test(newValue)) {
+    form.value.quantity = newValue.replace(/\D/g, '');
+    return;
   }
 };
 
@@ -357,47 +365,41 @@ const handlePriceInput = (value: string) => {
   form.value.price = newValue;
 };
 
-// 提交出库
+// 提交表单
 const handleSubmit = async () => {
-  if (!formRef.value || !currentProduct.value) return;
-
-  // 检查库存是否足够
-  const quantity = parseInt(form.value.quantity);
-  if (quantity > currentProduct.value.stock) {
-    ElMessage.error(`出库数量(${quantity})超过当前库存(${currentProduct.value.stock})`);
-    return;
-  }
-
-  await formRef.value.validate(async (valid) => {
-    if (valid) {
-      loading.value = true;
-      try {
-        await stockOut({
-          barcode: form.value.barcode,
-          quantity: quantity,
-          price: form.value.price
-        });
-        ElMessage.success('出库成功');
-
-        // 重置表单
-        form.value = {
-          barcode: '',
-          quantity: '',
-          price: ''
-        };
-        currentProduct.value = null;
-        formRef.value.resetFields();
-
-        // 刷新记录
-        loadRecentRecords();
-      } catch (error) {
-        console.error('出库失败:', error);
-        ElMessage.error('出库失败');
-      } finally {
-        loading.value = false;
-      }
+  if (!formRef.value) return;
+  
+  try {
+    await formRef.value.validate();
+    
+    const quantity = parseInt(form.value.quantity);
+    if (currentProduct.value && quantity > currentProduct.value.stock) {
+      ElMessage.error(`出库数量不能超过当前库存(${currentProduct.value.stock}${currentProduct.value.unit})`);
+      return;
     }
-  });
+    
+    await stockOut({
+      barcode: form.value.barcode,
+      quantity: quantity,
+      price: form.value.price
+    });
+    ElMessage.success('出库成功');
+
+    // 重置表单
+    form.value = {
+      barcode: '',
+      quantity: '',
+      price: ''
+    };
+    currentProduct.value = null;
+    formRef.value.resetFields();
+
+    // 刷新记录
+    loadRecentRecords();
+  } catch (error) {
+    // 表单验证失败的处理
+    console.error('表单验证失败:', error);
+  }
 };
 
 // 选择商品
@@ -516,6 +518,12 @@ loadRecentRecords();
   :deep(.el-input__suffix) {
     color: #909399;
   }
+}
+
+.stock-hint {
+  margin-top: 8px;
+  color: #909399;
+  font-size: 14px;
 }
 
 // 其他样式已在 common.scss 中定义
