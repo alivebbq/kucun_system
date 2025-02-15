@@ -218,14 +218,26 @@ const formatDate = (dateStr: string) => {
 const loadTransactions = async () => {
   loading.value = true;
   try {
-    const response = await getTransactions({
-      barcode: filters.value.barcode,
-      type: filters.value.type,
-      start_date: filters.value.startDate,
-      end_date: filters.value.endDate,
+    const params: any = {
       skip: (currentPage.value - 1) * pageSize.value,
       limit: pageSize.value
-    });
+    };
+
+    // 只添加有值的参数
+    if (filters.value.barcode) {
+      params.barcode = filters.value.barcode;
+    }
+    if (filters.value.type) {
+      params.type = filters.value.type;
+    }
+    if (filters.value.startDate) {
+      params.start_date = new Date(filters.value.startDate).toISOString();
+    }
+    if (filters.value.endDate) {
+      params.end_date = new Date(filters.value.endDate).toISOString();
+    }
+
+    const response = await getTransactions(params);
     transactions.value = response.items;
     total.value = response.total;
   } catch (error) {

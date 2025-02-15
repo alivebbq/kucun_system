@@ -226,10 +226,10 @@ class InventoryService:
             Transaction.store_id == store_id
         )
         
-        # 添加过滤条件
-        if barcode:
+        # 添加过滤条件，只在有值时添加
+        if barcode and barcode.strip():
             base_query = base_query.filter(Transaction.barcode == barcode)
-        if type:
+        if type and type.strip():
             base_query = base_query.filter(Transaction.type == type)
         if start_date:
             base_query = base_query.filter(Transaction.timestamp >= start_date)

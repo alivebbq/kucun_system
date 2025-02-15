@@ -7,7 +7,7 @@
           <el-form-item>
             <el-autocomplete
               v-model="searchQuery"
-              :fetch-suggestions="searchProduct"
+              :fetch-suggestions="querySearch"
               placeholder="输入商品名称或条形码"
               :trigger-on-focus="false"
               clearable
@@ -273,6 +273,9 @@ const formatDate = (dateStr: string) => {
   });
 };
 
+// 搜索查询
+const searchQuery = ref('');
+
 // 搜索建议
 const querySearch = async (queryString: string, cb: (arg: any[]) => void) => {
   if (!queryString) {
@@ -282,7 +285,12 @@ const querySearch = async (queryString: string, cb: (arg: any[]) => void) => {
 
   try {
     const response = await searchInventory(queryString);
-    cb(response);
+    const suggestions = response.map(item => ({
+      value: item.barcode,
+      label: `${item.name} (${item.barcode})`,
+      ...item
+    }));
+    cb(suggestions);
   } catch (error) {
     console.error('搜索商品失败:', error);
     cb([]);
@@ -306,65 +314,14 @@ const showProductList = async () => {
 };
 
 // 选择商品
-const handleSelect = (item: Inventory) => {
-  currentProduct.value = item;
-  form.value.barcode = item.barcode;
-};
-
-// 处理搜索
-const handleSearch = async () => {
-  if (!form.value.barcode) {
-    ElMessage.warning('请输入商品条形码或名称');
+const handleSelect = (item: any) => {
+  if (!item.is_active) {
+    ElMessage.warning('该商品已禁用，无法选择');
+    searchQuery.value = '';
     return;
   }
-
-  try {
-    const response = await searchInventory(form.value.barcode);
-    if (response.length === 0) {
-      ElMessage.warning('未找到商品');
-      currentProduct.value = null;
-    } else if (response.length === 1) {
-      currentProduct.value = response[0];
-      form.value.barcode = response[0].barcode;
-    } else {
-      // 如果有多个结果，显示选择对话框
-      ElMessageBox.select({
-        title: '请选择商品',
-        message: '找到多个匹配的商品，请选择：',
-        options: response.map(item => ({
-          label: `${item.name} (${item.barcode})`,
-          value: item
-        })),
-        cancelButtonText: '取消',
-        confirmButtonText: '确定'
-      }).then(selected => {
-        if (selected) {
-          currentProduct.value = selected;
-          form.value.barcode = selected.barcode;
-        }
-      }).catch(() => {
-        // 用户取消选择
-      });
-    }
-  } catch (error) {
-    console.error('搜索商品失败:', error);
-    ElMessage.error('搜索商品失败');
-    currentProduct.value = null;
-  }
-};
-
-// 加载最近出库记录
-const loadRecentRecords = async () => {
-  try {
-    const response = await getTransactions({
-      type: 'out',  // 只获取出库记录
-      limit: 10
-    });
-    recentRecords.value = response.items;  // 使用 response.items
-  } catch (error) {
-    console.error('加载出库记录失败:', error);
-    ElMessage.error('加载出库记录失败');
-  }
+  currentProduct.value = item;
+  form.value.barcode = item.barcode;
 };
 
 // 处理数量输入
@@ -467,32 +424,20 @@ const handleCancel = async (row: Transaction) => {
       }
     );
 
-    console.log('Cancelling transaction:', row.id);
     await cancelTransaction(row.id);
     ElMessage.success('撤销成功');
     // 刷新记录列表和当前商品信息
     loadRecentRecords();
     if (currentProduct.value?.barcode === row.barcode) {
-      await searchProduct(row.barcode);
+      const response = await searchInventory(row.barcode);
+      if (response.length > 0) {
+        currentProduct.value = response[0];
+      }
     }
   } catch (error: any) {
-    console.error('Cancel error:', error);
     if (error !== 'cancel') {
       ElMessage.error(error.response?.data?.detail || '撤销失败');
     }
-  }
-};
-
-// 搜索商品信息
-const searchProduct = async (barcode: string) => {
-  try {
-    const response = await getInventoryByBarcode(barcode);
-    currentProduct.value = response;
-    return response;
-  } catch (error) {
-    console.error('获取商品信息失败:', error);
-    ElMessage.error('获取商品信息失败');
-    return null;
   }
 };
 
@@ -500,6 +445,20 @@ const searchProduct = async (barcode: string) => {
 const canSubmit = computed(() => {
   return currentProduct.value?.is_active && currentProduct.value?.stock > 0;
 });
+
+// 添加 loadRecentRecords 函数
+const loadRecentRecords = async () => {
+  try {
+    const response = await getTransactions({
+      type: 'out',  // 只获取出库记录
+      limit: 10
+    });
+    recentRecords.value = response.items;
+  } catch (error) {
+    console.error('加载出库记录失败:', error);
+    ElMessage.error('加载出库记录失败');
+  }
+};
 
 // 初始化加载
 loadRecentRecords();

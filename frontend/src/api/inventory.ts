@@ -89,7 +89,11 @@ export const getTransactions = (params?: {
     skip?: number;
     limit?: number;
 }) => {
-    return api.get<TransactionResponse>('/api/v1/transactions/', { params });
+    // 过滤掉空字符串参数
+    const filteredParams = Object.fromEntries(
+        Object.entries(params || {}).filter(([_, v]) => v != null && v !== '')
+    );
+    return api.get<TransactionResponse>('/api/v1/transactions', { params: filteredParams });
 };
 
 // 删除商品
