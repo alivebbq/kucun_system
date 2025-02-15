@@ -1,9 +1,13 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case, or_
+from sqlalchemy import func, case, or_, select
+from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
 from datetime import datetime, timedelta
 from fastapi import HTTPException
+from contextlib import contextmanager
+import time
 
 from app.models.inventory import Inventory, Transaction
 from app.models.user import User
@@ -73,64 +77,139 @@ class InventoryService:
         db.refresh(db_inventory)
         return db_inventory
     
+    @contextmanager
+    def _get_lock(db: Session, barcode: str, store_id: int):
+        """获取商品的行级锁"""
+        try:
+            # 使用 SELECT FOR UPDATE 获取行级锁
+            stmt = select(Inventory).where(
+                Inventory.barcode == barcode,
+                Inventory.store_id == store_id
+            ).with_for_update()
+            
+            inventory = db.execute(stmt).scalar_one_or_none()
+            if not inventory:
+                raise HTTPException(status_code=404, detail="商品不存在")
+            
+            yield inventory
+            
+        except DBAPIError as e:
+            db.rollback()
+            logger.error(f"Database error while acquiring lock: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail="数据库锁定失败，请重试"
+            )
+
     @staticmethod
     def stock_in(db: Session, stock_in: StockIn, store_id: int, operator_id: int):
         """商品入库"""
-        db_inventory = InventoryService.get_inventory_by_barcode(db, stock_in.barcode, store_id)
-        if not db_inventory:
-            raise HTTPException(status_code=404, detail="商品不存在")
-        if not db_inventory.is_active:
-            raise HTTPException(status_code=400, detail="商品已禁用，无法入库")
+        max_retries = 3
+        retry_count = 0
         
-        # 更新库存数量
-        db_inventory.stock += stock_in.quantity
-        
-        # 记录交易
-        transaction = Transaction(
-            barcode=stock_in.barcode,
-            type="in",
-            quantity=stock_in.quantity,
-            price=stock_in.price,
-            total=stock_in.quantity * stock_in.price,
-            store_id=store_id,
-            operator_id=operator_id
-        )
-        
-        db.add(transaction)
-        db.commit()
-        db.refresh(db_inventory)
-        return db_inventory
-    
+        while retry_count < max_retries:
+            try:
+                with InventoryService._get_lock(db, stock_in.barcode, store_id) as inventory:
+                    if not inventory.is_active:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="商品已禁用，无法入库"
+                        )
+                    
+                    # 更新库存数量
+                    inventory.stock += stock_in.quantity
+                    
+                    # 记录交易
+                    transaction = Transaction(
+                        barcode=stock_in.barcode,
+                        type="in",
+                        quantity=stock_in.quantity,
+                        price=stock_in.price,
+                        total=stock_in.quantity * stock_in.price,
+                        store_id=store_id,
+                        operator_id=operator_id
+                    )
+                    
+                    db.add(transaction)
+                    db.commit()
+                    db.refresh(inventory)
+                    return inventory
+                    
+            except IntegrityError:
+                db.rollback()
+                retry_count += 1
+                if retry_count >= max_retries:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="操作失败，请重试"
+                    )
+                time.sleep(0.1 * retry_count)  # 递增延迟重试
+                
+            except Exception as e:
+                db.rollback()
+                logger.error(f"Error in stock_in: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="入库操作失败"
+                )
+
     @staticmethod
     def stock_out(db: Session, stock_out: StockOut, store_id: int, operator_id: int):
         """商品出库"""
-        db_inventory = InventoryService.get_inventory_by_barcode(db, stock_out.barcode, store_id)
-        if not db_inventory:
-            raise HTTPException(status_code=404, detail="商品不存在")
-        if not db_inventory.is_active:
-            raise HTTPException(status_code=400, detail="商品已禁用，无法出库")
+        max_retries = 3
+        retry_count = 0
         
-        if db_inventory.stock < stock_out.quantity:
-            raise HTTPException(status_code=400, detail="Insufficient stock")
-        
-        # 更新库存数量
-        db_inventory.stock -= stock_out.quantity
-        
-        # 创建交易记录
-        transaction = Transaction(
-            barcode=stock_out.barcode,
-            type="out",
-            quantity=stock_out.quantity,
-            price=stock_out.price,
-            total=stock_out.quantity * stock_out.price,
-            store_id=store_id,
-            operator_id=operator_id
-        )
-        
-        db.add(transaction)
-        db.commit()
-        db.refresh(db_inventory)
-        return db_inventory
+        while retry_count < max_retries:
+            try:
+                with InventoryService._get_lock(db, stock_out.barcode, store_id) as inventory:
+                    if not inventory.is_active:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="商品已禁用，无法出库"
+                        )
+                    
+                    if inventory.stock < stock_out.quantity:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"库存不足 (当前库存: {inventory.stock})"
+                        )
+                    
+                    # 更新库存数量
+                    inventory.stock -= stock_out.quantity
+                    
+                    # 记录交易
+                    transaction = Transaction(
+                        barcode=stock_out.barcode,
+                        type="out",
+                        quantity=stock_out.quantity,
+                        price=stock_out.price,
+                        total=stock_out.quantity * stock_out.price,
+                        store_id=store_id,
+                        operator_id=operator_id
+                    )
+                    
+                    db.add(transaction)
+                    db.commit()
+                    db.refresh(inventory)
+                    return inventory
+                    
+            except IntegrityError:
+                db.rollback()
+                retry_count += 1
+                if retry_count >= max_retries:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="操作失败，请重试"
+                    )
+                time.sleep(0.1 * retry_count)
+                
+            except Exception as e:
+                db.rollback()
+                logger.error(f"Error in stock_out: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="出库操作失败"
+                )
     
     @staticmethod
     def get_inventory_stats(db: Session) -> dict:

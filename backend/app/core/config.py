@@ -24,6 +24,17 @@ class Settings(BaseSettings):
     SCANNER_PORT: Optional[str] = "COM1"
     SCANNER_BAUDRATE: int = 9600
     
+    # 数据库配置
+    DB_POOL_SIZE: int = 20
+    DB_MAX_OVERFLOW: int = 30
+    DB_POOL_TIMEOUT: int = 30
+    DB_POOL_RECYCLE: int = 1800
+    SQL_ECHO: bool = False  # 是否打印SQL语句
+    
+    # 并发和重试配置
+    MAX_RETRIES: int = 3
+    RETRY_DELAY: float = 0.1
+    
     class Config:
         env_file = ".env"
         # 允许从环境变量加载额外的配置

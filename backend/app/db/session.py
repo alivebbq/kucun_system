@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.pool import QueuePool
 from app.core.config import settings
 import logging
 
@@ -11,12 +12,14 @@ logger = logging.getLogger(__name__)
 try:
     engine = create_engine(
         settings.DATABASE_URL,
-        pool_pre_ping=True,  # 自动检测断开的连接
-        pool_size=5,         # 连接池大小
-        max_overflow=10,     # 超过 pool_size 后最多可以创建的连接数
-        pool_timeout=30,     # 连接池获取连接的超时时间
-        pool_recycle=1800,   # 连接在连接池中重复使用的时间，超过后会被回收
-        echo=True  # 打印 SQL 语句，方便调试
+        poolclass=QueuePool,
+        pool_size=20,               # 增加连接池大小
+        max_overflow=30,            # 增加最大溢出连接数
+        pool_timeout=30,            # 获取连接超时时间
+        pool_recycle=1800,          # 连接回收时间
+        pool_pre_ping=True,         # 自动检测断开的连接
+        isolation_level="READ COMMITTED",  # 设置隔离级别
+        echo=settings.SQL_ECHO     # 根据配置决定是否打印SQL
     )
     logger.info("Database engine created successfully")
 except Exception as e:
@@ -24,7 +27,12 @@ except Exception as e:
     raise
 
 # 创建会话工厂
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    expire_on_commit=False  # 提交后不过期对象
+)
 
 # 创建基类
 Base = declarative_base()
@@ -34,5 +42,9 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception as e:
+        logger.error(f"Database session error: {str(e)}")
+        db.rollback()
+        raise
     finally:
         db.close() 
