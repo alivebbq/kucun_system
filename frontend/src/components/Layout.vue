@@ -16,7 +16,7 @@
     <el-container class="main-container">
       <el-header height="60px">
         <div class="header-content">
-          <h2>库存管理系统</h2>
+          <h2>顶顶库存管理系统</h2>
           <div class="user-info">
             <span>{{ userStore.user?.name || userStore.user?.username }}</span>
             <el-button type="text" @click="handleLogout">退出</el-button>

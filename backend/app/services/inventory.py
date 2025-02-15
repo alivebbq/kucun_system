@@ -53,15 +53,66 @@ class InventoryService:
     
     @staticmethod
     def create_inventory(db: Session, inventory: InventoryCreate, store_id: int):
-        db_inventory = Inventory(
-            **inventory.model_dump(),
-            stock=0,
-            store_id=store_id
-        )
-        db.add(db_inventory)
-        db.commit()
-        db.refresh(db_inventory)
-        return db_inventory
+        """创建新商品"""
+        try:
+            # 先检查条形码是否已存在
+            existing_inventory = db.query(Inventory).filter(
+                Inventory.barcode == inventory.barcode,
+                Inventory.store_id == store_id
+            ).first()
+            
+            if existing_inventory:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"条形码 '{inventory.barcode}' 已存在"
+                )
+            
+            # 检查商品名称是否重复
+            existing_name = db.query(Inventory).filter(
+                Inventory.name == inventory.name,
+                Inventory.store_id == store_id
+            ).first()
+            
+            if existing_name:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"商品名称 '{inventory.name}' 已存在"
+                )
+            
+            # 创建新商品
+            db_inventory = Inventory(
+                **inventory.model_dump(),
+                stock=0,
+                store_id=store_id
+            )
+            
+            db.add(db_inventory)
+            db.commit()
+            db.refresh(db_inventory)
+            return db_inventory
+            
+        except HTTPException:
+            # 直接重新抛出 HTTP 异常
+            raise
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error creating inventory: {str(e)}")
+            # 检查是否是数据库唯一性约束错误
+            if 'unique constraint' in str(e).lower():
+                if 'barcode' in str(e).lower():
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"条形码 '{inventory.barcode}' 已存在"
+                    )
+                elif 'name' in str(e).lower():
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"商品名称 '{inventory.name}' 已存在"
+                    )
+            raise HTTPException(
+                status_code=500,
+                detail=f"创建商品失败: {str(e)}"
+            )
     
     @staticmethod
     def update_inventory(db: Session, barcode: str, inventory: InventoryUpdate, store_id: int):

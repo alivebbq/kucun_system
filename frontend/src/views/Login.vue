@@ -1,24 +1,64 @@
 <template>
   <div class="login-container">
-    <el-card class="login-card">
-      <template #header>
-        <h2 class="login-title">库存管理系统</h2>
-      </template>
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="0" class="login-form">
+    <div class="login-box">
+      <!-- Logo和标题 -->
+      <div class="header">
+        <div class="logo">
+          <img src="/inventory.svg" alt="Logo">
+        </div>
+        <h1>顶顶库存管理系统</h1>
+        <p class="subtitle">专业的批发商进销存管理解决方案</p>
+      </div>
+
+      <!-- 登录表单 -->
+      <el-form 
+        ref="formRef" 
+        :model="form" 
+        :rules="rules" 
+        class="login-form"
+      >
         <el-form-item prop="username">
-          <el-input v-model="form.username" placeholder="用户名" prefix-icon="User" />
+          <el-input
+            v-model="form.username"
+            placeholder="用户名"
+            :prefix-icon="User"
+            size="large"
+            @keyup.enter="focusPassword"
+          />
         </el-form-item>
+
         <el-form-item prop="password">
-          <el-input v-model="form.password" type="password" placeholder="密码" prefix-icon="Lock" 
-            @keyup.enter="handleLogin" />
+          <el-input
+            ref="passwordInput"
+            v-model="form.password"
+            type="password"
+            placeholder="密码"
+            :prefix-icon="Lock"
+            size="large"
+            show-password
+            @keyup.enter="handleLogin"
+          />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="loading" class="login-button" @click="handleLogin">
-            登录
+
+        <el-form-item class="login-button">
+          <el-button
+            type="primary"
+            :loading="loading"
+            size="large"
+            class="submit-btn"
+            @click="handleLogin"
+          >
+            {{ loading ? '登录中...' : '登 录' }}
           </el-button>
         </el-form-item>
       </el-form>
-    </el-card>
+
+      <!-- 底部版权信息 -->
+      <div class="footer">
+        <p class="contact">联系方式：微信号：Curiosity_Alive / 15520768906</p>
+        <p>© {{ new Date().getFullYear() }} 海南顶顶软件科技有限公司 版权所有</p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -26,14 +66,15 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { User, Lock } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { login } from '../api/user';
 import { useUserStore } from '../stores/user';
-import api from '../api/config';
 
 const router = useRouter();
 const userStore = useUserStore();
 const formRef = ref<FormInstance>();
+const passwordInput = ref<InstanceType<typeof ElInput>>();
 const loading = ref(false);
 
 const form = ref({
@@ -52,6 +93,10 @@ const rules: FormRules = {
   ]
 };
 
+const focusPassword = () => {
+  passwordInput.value?.focus();
+};
+
 const handleLogin = async () => {
   if (!formRef.value) return;
   
@@ -59,83 +104,191 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true;
       try {
-        console.log('=== Login Request Starting ===');
-        
-        // 实际登录请求
         const response = await login(form.value.username, form.value.password);
-        console.log('Login response:', response);
         
-        if (response.access_token) {  // 确保有 token
+        if (response.access_token) {
           userStore.setToken(response.access_token);
           userStore.setUser(response.user);
           ElMessage.success('登录成功');
           router.push('/');
-        } else {
-          throw new Error('Invalid response format');
         }
       } catch (error: any) {
-        console.error('=== Login Error ===');
-        console.error('Error details:', {
-          name: error.name,
-          message: error.message,
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          headers: error.response?.headers,
-          config: {
-            url: error.config?.url,
-            method: error.config?.method,
-            headers: error.config?.headers,
-            data: error.config?.data,
-            baseURL: error.config?.baseURL
-          }
-        });
+        console.error('登录失败:', error);
         ElMessage.error(error.response?.data?.detail || '登录失败');
       } finally {
         loading.value = false;
-        console.log('=== Login Request End ===');
       }
     }
   });
 };
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .login-container {
   height: 100vh;
+  width: 100vw;
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #f5f7fa;
+  background: linear-gradient(135deg, #1890ff11 0%, #1890ff05 100%);
+  position: relative;
+  overflow: hidden;
+
+  // 背景动画效果
+  &::before {
+    content: "";
+    position: absolute;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+      45deg,
+      rgba(24, 144, 255, 0.1) 0%,
+      rgba(24, 144, 255, 0.05) 100%
+    );
+    animation: wave 15s infinite linear;
+  }
 }
 
-.login-card {
-  width: 400px;
+@keyframes wave {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
 }
 
-.login-title {
+.login-box {
+  position: relative;
+  width: 420px;
+  padding: 40px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.header {
   text-align: center;
-  margin: 0;
-  color: #303133;
+  margin-bottom: 40px;
+
+  .logo {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  }
+
+  h1 {
+    font-size: 28px;
+    color: #303133;
+    margin: 0 0 8px;
+    font-weight: 600;
+  }
+
+  .subtitle {
+    font-size: 16px;
+    color: #909399;
+    margin: 0;
+  }
 }
 
 .login-form {
-  padding: 20px 0;
+  .el-form-item {
+    margin-bottom: 24px;
+  }
+
+  :deep(.el-input__wrapper) {
+    box-shadow: 0 0 0 1px #dcdfe6 inset;
+    padding: 0 12px;
+    height: 44px;
+    transition: all 0.3s;
+
+    &:hover {
+      box-shadow: 0 0 0 1px #c0c4cc inset;
+    }
+
+    &.is-focus {
+      box-shadow: 0 0 0 1px #409eff inset !important;
+    }
+  }
+
+  :deep(.el-input__prefix) {
+    font-size: 18px;
+    color: #909399;
+  }
 }
 
-.login-button {
+.submit-btn {
   width: 100%;
+  height: 44px;
+  font-size: 16px;
+  letter-spacing: 4px;
+  background: linear-gradient(135deg, #409eff, #1890ff);
+  border: none;
+  transition: all 0.3s;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
 }
 
-:deep(.el-input__wrapper) {
-  box-shadow: 0 0 0 1px #dcdfe6 inset;
+.footer {
+  text-align: center;
+  margin-top: 40px;
+  color: #909399;
+  font-size: 14px;
+
+  .contact {
+    margin-bottom: 8px;
+    color: #606266;
+  }
 }
 
-:deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px #c0c4cc inset;
-}
+// 响应式设计
+@media screen and (max-width: 576px) {
+  .login-box {
+    width: 90%;
+    padding: 20px;
+  }
 
-:deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #409eff inset !important;
+  .header {
+    margin-bottom: 30px;
+
+    .logo {
+      width: 60px;
+      height: 60px;
+    }
+
+    h1 {
+      font-size: 24px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+    }
+  }
 }
 </style> 

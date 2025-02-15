@@ -276,9 +276,10 @@ const handleSubmit = async () => {
         }
         handleDialogClose();  // 使用统一的关闭处理
         loadInventory();
-      } catch (error) {
+      } catch (error: any) {
         console.error('操作失败:', error);
-        ElMessage.error('操作失败');
+        // 显示后端返回的具体错误信息
+        ElMessage.error(error.response?.data?.detail || '操作失败');
       }
     }
   });
@@ -301,10 +302,11 @@ const handleToggleStatus = async (row: Inventory) => {
     await toggleInventoryStatus(row.barcode);
     ElMessage.success(`${action}成功`);
     await loadInventory();
-  } catch (error) {
+  } catch (error: any) {
     if (error !== 'cancel') {
       console.error('操作失败:', error);
-      ElMessage.error('操作失败');
+      // 显示后端返回的具体错误信息
+      ElMessage.error(error.response?.data?.detail || '操作失败');
     }
   }
 };

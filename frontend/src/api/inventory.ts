@@ -56,13 +56,23 @@ export const getInventoryByBarcode = (barcode: string) => {
 };
 
 // 创建商品
-export const createInventory = (data: Partial<Inventory>) => {
-    return api.post<Inventory>('/api/v1/inventory/', data);
+export const createInventory = async (data: Partial<Inventory>) => {
+    try {
+        const response = await api.post<Inventory>('/api/v1/inventory/', data);
+        return response;
+    } catch (error: any) {
+        throw error;
+    }
 };
 
 // 更新商品
-export const updateInventory = (barcode: string, data: Partial<Inventory>) => {
-    return api.put<Inventory>(`/api/v1/inventory/${barcode}`, data);
+export const updateInventory = async (barcode: string, data: Partial<Inventory>) => {
+    try {
+        const response = await api.put<Inventory>(`/api/v1/inventory/${barcode}`, data);
+        return response;
+    } catch (error: any) {
+        throw error;
+    }
 };
 
 // 商品入库
@@ -169,8 +179,13 @@ export const getProductAnalysis = (barcode: string, months: number = 1) => {
 };
 
 // 切换商品状态
-export const toggleInventoryStatus = (barcode: string) => {
-    return api.put<Inventory>(`/api/v1/inventory/${barcode}/toggle`);
+export const toggleInventoryStatus = async (barcode: string) => {
+    try {
+        const response = await api.put<Inventory>(`/api/v1/inventory/${barcode}/toggle`);
+        return response;
+    } catch (error: any) {
+        throw error;
+    }
 };
 
 // 搜索商品

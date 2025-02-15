@@ -43,10 +43,41 @@ def create_inventory(
     current_user = Depends(get_current_active_user)
 ):
     """创建新商品"""
-    db_inventory = InventoryService.get_inventory_by_barcode(db, inventory.barcode, current_user.store_id)
-    if db_inventory:
-        raise HTTPException(status_code=400, detail="商品已存在")
-    return InventoryService.create_inventory(db=db, inventory=inventory, store_id=current_user.store_id)
+    try:
+        # 验证条形码格式
+        if not inventory.barcode.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="条形码不能为空"
+            )
+        
+        # 验证商品名称
+        if not inventory.name.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="商品名称不能为空"
+            )
+        
+        # 验证警戒库存
+        if inventory.warning_stock < 0:
+            raise HTTPException(
+                status_code=400,
+                detail="警戒库存不能小于0"
+            )
+        
+        return InventoryService.create_inventory(
+            db=db,
+            inventory=inventory,
+            store_id=current_user.store_id
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in create_inventory: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"创建商品失败: {str(e)}"
+        )
 
 @router.put("/inventory/{barcode}", response_model=Inventory)
 def update_inventory(
