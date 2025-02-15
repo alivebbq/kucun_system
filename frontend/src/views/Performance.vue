@@ -36,8 +36,8 @@
         </el-col>
         <el-col :span="5">
           <div class="stat-item">
-            <div class="label">销售成本</div>
-            <div class="value cost">¥{{ formatNumber(stats.summary.sales_cost) }}</div>
+            <div class="label">销售成本(先进先出法)</div>
+            <div class="value cost">¥{{ formatNumber(stats.summary.total_sales_cost) }}</div> 
           </div>
         </el-col>
         <el-col :span="5">
@@ -156,7 +156,7 @@ const stats = ref<PerformanceStats>({
   summary: {
     total_purchase: 0,
     total_sales: 0,
-    sales_cost: 0,
+    total_sales_cost: 0,
     total_profit: 0,
     profit_rate: 0
   }
@@ -202,10 +202,14 @@ const formatNumber = (num: number) => {
 const loadStats = async () => {
   try {
     const [start_date, end_date] = dateRange.value;
+    console.log('Date range:', { start_date, end_date });
+    
     const response = await getPerformanceStats({
       start_date: start_date ? `${new Date(start_date).toISOString().split('T')[0]}T00:00:00` : undefined,
       end_date: end_date ? `${new Date(end_date).toISOString().split('T')[0]}T23:59:59` : undefined
     });
+    console.log('Performance stats response:', response);
+    
     stats.value = response;
   } catch (error) {
     console.error('加载统计数据失败:', error);

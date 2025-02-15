@@ -6,7 +6,7 @@ from datetime import datetime
 
 from app.db.session import get_db
 from app.services.user import UserService
-from app.core.auth import create_access_token
+from app.core.auth import create_access_token, get_current_active_user
 from app.schemas.user import Token, User
 
 router = APIRouter(prefix="/api/v1/auth")
@@ -39,3 +39,8 @@ async def login(
         "token_type": "bearer",
         "user": user
     }
+
+@router.get("/users/me", response_model=User)
+async def get_current_user(current_user = Depends(get_current_active_user)):
+    """获取当前登录用户信息"""
+    return current_user

@@ -424,106 +424,22 @@ class InventoryService:
         end_date: datetime,
         store_id: int
     ) -> dict:
-        # 修改利润计算逻辑，使用实际交易记录
+        # 初始化变量
+        total_purchase = Decimal('0')
+        total_sales = Decimal('0')
+        total_sales_cost = Decimal('0')
         profit_rankings = []
+        sales_rankings = []
+
+        # 获取所有商品
         for inv in db.query(Inventory).filter(Inventory.store_id == store_id).all():
             # 获取销售记录
             out_records = db.query(Transaction)\
                 .filter(
                     Transaction.barcode == inv.barcode,
                     Transaction.type == 'out',
-                    Transaction.store_id == store_id,
-                    Transaction.timestamp.between(start_date, end_date)
-                ).all()
-            
-            # 获取对应时期的进货记录
-            in_records = db.query(Transaction)\
-                .filter(
-                    Transaction.barcode == inv.barcode,
-                    Transaction.type == 'in',
-                    Transaction.store_id == store_id,
-                    Transaction.timestamp <= end_date
-                ).order_by(Transaction.timestamp.asc()).all()
-            
-            # 计算销售收入和成本
-            total_revenue = sum(r.total for r in out_records)
-            total_cost = Decimal('0')
-            remaining_quantity = 0
-            
-            for in_record in in_records:
-                if remaining_quantity >= sum(r.quantity for r in out_records):
-                    break
-                used_quantity = min(
-                    in_record.quantity,
-                    sum(r.quantity for r in out_records) - remaining_quantity
-                )
-                total_cost += used_quantity * in_record.price
-                remaining_quantity += used_quantity
-            
-            if total_cost > 0:
-                profit_rankings.append({
-                    "barcode": inv.barcode,
-                    "name": inv.name,
-                    "total_cost": total_cost,
-                    "total_revenue": total_revenue,
-                    "profit": total_revenue - total_cost,
-                    "profit_rate": float((total_revenue - total_cost) / total_cost * 100)
-                })
-        
-        # 获取销售额排名
-        sales_rankings = []
-        sales_query = db.query(
-            Transaction.barcode,
-            Inventory.name,
-            func.sum(Transaction.quantity).label('quantity'),
-            func.sum(Transaction.total).label('revenue')
-        ).join(Inventory, Transaction.barcode == Inventory.barcode)\
-        .filter(
-            Transaction.timestamp.between(start_date, end_date),
-            Transaction.type == 'out',
-            Transaction.store_id == store_id
-        ).group_by(Transaction.barcode, Inventory.name)
-
-        for barcode, name, quantity, revenue in sales_query:
-            sales_rankings.append({
-                "barcode": barcode,
-                "name": name,
-                "quantity": quantity,
-                "revenue": revenue
-            })
-        
-        # 按销售额降序排序
-        sales_rankings.sort(key=lambda x: x['revenue'], reverse=True)
-
-        # 获取销售汇总
-        summary_query = db.query(
-            # 进货总额
-            func.sum(case(
-                (Transaction.type == 'in', Transaction.total),
-                else_=0
-            )).label('total_purchase'),
-            # 销售总额
-            func.sum(case(
-                (Transaction.type == 'out', Transaction.total),
-                else_=0
-            )).label('total_sales')
-        ).filter(
-            Transaction.timestamp.between(start_date, end_date),
-            Transaction.store_id == store_id
-        ).first()
-
-        total_purchase = (summary_query[0] or Decimal('0')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        total_sales = (summary_query[1] or Decimal('0')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
-        # 计算总销售成本（使用先进先出原则）
-        total_sales_cost = Decimal('0')
-        for inv in db.query(Inventory).all():
-            # 获取销售记录
-            out_records = db.query(Transaction)\
-                .filter(
-                    Transaction.barcode == inv.barcode,
-                    Transaction.type == 'out',
-                    Transaction.timestamp.between(start_date, end_date)
+                    Transaction.timestamp.between(start_date, end_date),
+                    Transaction.store_id == store_id
                 ).all()
             
             # 获取进货记录
@@ -531,39 +447,71 @@ class InventoryService:
                 .filter(
                     Transaction.barcode == inv.barcode,
                     Transaction.type == 'in',
-                    Transaction.timestamp <= end_date
+                    Transaction.timestamp <= end_date,
+                    Transaction.store_id == store_id
                 ).order_by(Transaction.timestamp.asc()).all()
             
-            # 计算该商品的销售成本
-            remaining_quantity = 0
-            total_out_quantity = sum(r.quantity for r in out_records)
-            
-            for in_record in in_records:
-                if remaining_quantity >= total_out_quantity:
+            # 计算销售总额
+            sales_quantity = sum(r.quantity for r in out_records)
+            sales_revenue = sum(r.total for r in out_records)
+            total_sales += sales_revenue
+
+            # 计算进货总额
+            purchase_total = sum(r.total for r in in_records)
+            total_purchase += purchase_total
+
+            # 计算销售成本（使用FIFO方法）
+            cost = Decimal('0')
+            remaining_quantity = sales_quantity
+            for record in in_records:
+                if remaining_quantity <= 0:
                     break
-                used_quantity = min(
-                    in_record.quantity,
-                    total_out_quantity - remaining_quantity
-                )
-                total_sales_cost += used_quantity * in_record.price
-                remaining_quantity += used_quantity
+                used_quantity = min(record.quantity, remaining_quantity)
+                cost += used_quantity * record.price
+                remaining_quantity -= used_quantity
+            
+            total_sales_cost += cost
+
+            # 计算利润
+            profit = sales_revenue - cost
+            profit_rate = (profit / cost * 100) if cost > 0 else 0
+
+            # 添加到排名列表
+            if sales_quantity > 0:
+                profit_rankings.append({
+                    "barcode": inv.barcode,
+                    "name": inv.name,
+                    "total_cost": float(cost),
+                    "total_revenue": float(sales_revenue),
+                    "profit": float(profit),
+                    "profit_rate": float(profit_rate)
+                })
+
+                sales_rankings.append({
+                    "barcode": inv.barcode,
+                    "name": inv.name,
+                    "quantity": sales_quantity,
+                    "revenue": float(sales_revenue)
+                })
+
+        # 按利润和销售额排序
+        profit_rankings.sort(key=lambda x: x["profit"], reverse=True)
+        sales_rankings.sort(key=lambda x: x["revenue"], reverse=True)
 
         # 计算总利润和利润率
-        total_profit = (total_sales - total_sales_cost).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        profit_rate = (float(total_profit / total_sales_cost * 100) if total_sales_cost > 0 else 0)
-
-        summary = {
-            "total_purchase": total_purchase,    # 进货总额
-            "total_sales": total_sales,         # 销售总额
-            "sales_cost": total_sales_cost,     # 销售成本（使用先进先出原则）
-            "total_profit": total_profit,       # 总利润
-            "profit_rate": profit_rate          # 利润率
-        }
+        total_profit = total_sales - total_sales_cost
+        profit_rate = float(total_profit / total_sales_cost * 100) if total_sales_cost > 0 else 0
 
         return {
-            "profit_rankings": profit_rankings,
-            "sales_rankings": sales_rankings,
-            "summary": summary
+            "profit_rankings": profit_rankings[:10],  # 只返回前10名
+            "sales_rankings": sales_rankings[:10],    # 只返回前10名
+            "summary": {
+                "total_purchase": float(total_purchase),
+                "total_sales": float(total_sales),
+                "total_sales_cost": float(total_sales_cost),
+                "total_profit": float(total_profit),
+                "profit_rate": profit_rate
+            }
         }
     
     @staticmethod

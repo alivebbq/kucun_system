@@ -14,7 +14,7 @@ export const useUserStore = defineStore('user', {
     }),
 
     getters: {
-        isLoggedIn: (state) => !!state.token,
+        isLoggedIn: (state) => !!state.token && !!state.user,
         isOwner: (state) => state.user?.is_owner || false,
         hasPermission: (state) => (permission: string) => {
             if (state.user?.is_owner) return true;
@@ -41,14 +41,17 @@ export const useUserStore = defineStore('user', {
         },
 
         async restoreUser() {
-            if (this.token && !this.user) {
+            if (this.token) {
                 try {
                     const response = await api.get('/api/v1/auth/users/me');
                     this.setUser(response);
+                    return response;
                 } catch (error) {
                     this.logout();
+                    throw error;
                 }
             }
+            return null;
         }
     }
 }); 

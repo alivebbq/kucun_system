@@ -107,7 +107,7 @@ class SalesRanking(BaseModel):
 class SalesSummary(BaseModel):
     total_purchase: Decimal  # 进货总额
     total_sales: Decimal     # 销售总额
-    sales_cost: Decimal      # 销售成本
+    total_sales_cost: Decimal      # 销售成本
     total_profit: Decimal    # 总利润
     profit_rate: float       # 利润率（基于销售成本）
 

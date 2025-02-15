@@ -5,12 +5,13 @@ from datetime import datetime, timedelta
 
 from app.db.session import get_db
 from app.services.inventory import InventoryService
+from app.core.auth import get_current_active_user
+from app.models.user import User
 from app.schemas.inventory import (
     Inventory, InventoryCreate, InventoryUpdate,
     Transaction, StockIn, StockOut, InventoryStats,
     TransactionResponse, PerformanceStats, ProductAnalysis
 )
-from app.core.auth import get_current_active_user
 
 router = APIRouter(prefix="/api/v1")  # 添加前缀
 
@@ -175,21 +176,24 @@ def cancel_transaction(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/performance/", response_model=PerformanceStats)
-def get_performance_stats(
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
+async def get_performance_stats(
+    start_date: str = None,
+    end_date: str = None,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """获取业绩统计"""
-    # 如果没有指定日期，默认统计当前月份
+    # 如果没有提供日期，默认为当前月份
     if not start_date:
         start_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        start_date = datetime.fromisoformat(start_date)
+    
     if not end_date:
-        next_month = start_date.replace(day=28) + timedelta(days=4)
-        end_date = next_month - timedelta(days=next_month.day)
-        end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-
+        end_date = datetime.now()
+    else:
+        end_date = datetime.fromisoformat(end_date)
+    
     return InventoryService.get_performance_stats(
         db, 
         start_date, 

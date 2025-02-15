@@ -131,6 +131,7 @@ export interface SalesRanking {
 export interface SalesSummary {
     total_purchase: number;
     total_sales: number;
+    total_sales_cost: number;
     total_profit: number;
     profit_rate: number;
 }

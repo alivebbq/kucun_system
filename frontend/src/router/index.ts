@@ -126,7 +126,7 @@ const router = createRouter({
 });
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
     const userStore = useUserStore();
 
     // 设置页面标题
@@ -135,31 +135,43 @@ router.beforeEach((to, from, next) => {
         ? `${to.meta.title} - ${baseTitle}`
         : baseTitle;
 
-    // 检查路由是否需要认证
-    if (to.meta.requiresAuth && !userStore.isLoggedIn) {
+    try {
+        // 如果有token但没有用户信息，尝试恢复用户信息
+        if (userStore.token && !userStore.user) {
+            await userStore.restoreUser();
+        }
+
+        // 检查路由是否需要认证
+        if (to.meta.requiresAuth && !userStore.isLoggedIn) {
+            next('/login');
+            return;
+        }
+
+        // 检查是否需要店主权限
+        if (to.meta.requiresOwner && !userStore.isOwner) {
+            next('/');
+            return;
+        }
+
+        // 检查是否有对应权限
+        if (to.meta.permission && !userStore.hasPermission(to.meta.permission as string)) {
+            next('/');
+            return;
+        }
+
+        // 如果已登录且访问登录页，重定向到首页
+        if (to.path === '/login' && userStore.isLoggedIn) {
+            next('/');
+            return;
+        }
+
+        next();
+    } catch (error) {
+        // 如果恢复用户信息失败，清除token并跳转到登录页
+        console.error('Error restoring user:', error);
+        userStore.logout();
         next('/login');
-        return;
     }
-
-    // 检查是否需要店主权限
-    if (to.meta.requiresOwner && !userStore.isOwner) {
-        next('/');
-        return;
-    }
-
-    // 检查是否有对应权限
-    if (to.meta.permission && !userStore.hasPermission(to.meta.permission as string)) {
-        next('/');
-        return;
-    }
-
-    // 如果已登录且访问登录页，重定向到首页
-    if (to.path === '/login' && userStore.isLoggedIn) {
-        next('/');
-        return;
-    }
-
-    next();
 });
 
 export default router; 

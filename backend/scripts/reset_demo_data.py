@@ -9,12 +9,13 @@ from app.models.inventory import Inventory, Transaction
 from app.models.log import OperationLog
 import logging
 from datetime import datetime
+from create_demo_account import reset_demo_data as create_demo_data_for_store
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def reset_demo_data():
+def main():
     """重置演示账号的所有数据"""
     try:
         with Session(engine) as db:
@@ -25,6 +26,7 @@ def reset_demo_data():
                 return
 
             store_id = demo_user.store_id
+            user_id = demo_user.id
             
             logger.info("开始清除数据...")
             
@@ -49,9 +51,8 @@ def reset_demo_data():
             
             logger.info("演示数据已清除，开始重新初始化...")
             
-            # 重新初始化数据
-            from init_demo_data import init_demo_data
-            init_demo_data()
+            # 使用新的数据生成函数重新初始化数据
+            create_demo_data_for_store(store_id, user_id)
             
             logger.info(f"演示账号数据重置完成 - {datetime.now()}")
             
@@ -61,7 +62,7 @@ def reset_demo_data():
 
 if __name__ == "__main__":
     try:
-        reset_demo_data()
+        main()
     except Exception as e:
         logger.error(f"程序执行失败: {str(e)}")
         sys.exit(1) 
