@@ -1,0 +1,2 @@
+# 每小时重置演示账号数据
+0 * * * * cd /path/to/your/project/backend/scripts && /path/to/your/venv/bin/python reset_demo_data.py >> /path/to/your/logs/demo_reset.log 2>&1 

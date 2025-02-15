@@ -11,7 +11,7 @@ class Store(Base):
     __tablename__ = "stores"
     
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
+    name = Column(String(100), nullable=False)
     address = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
@@ -25,15 +25,15 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(50), unique=True, index=True)
-    name = Column(String(50), nullable=True)
-    hashed_password = Column(String(100))
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    name = Column(String(50))
+    hashed_password = Column(String(255), nullable=False)
     is_owner = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
-    store_id = Column(Integer, ForeignKey("stores.id"))
-    permissions = Column(String(200), default="")  # 存储为逗号分隔的字符串
-    created_at = Column(DateTime, default=datetime.now)  # 使用本地时间
-    last_login = Column(DateTime, nullable=True)
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
+    permissions = Column(String(255), default="")  # 权限字段，用逗号分隔
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_login = Column(DateTime(timezone=True))
     
     # 关联
     store = relationship("Store", back_populates="users")

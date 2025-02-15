@@ -10,6 +10,30 @@
         <p class="subtitle">专业的批发商进销存管理解决方案</p>
       </div>
 
+      <!-- 添加演示账号信息 -->
+      <div class="demo-account">
+        <div class="demo-title">
+          <el-icon><InfoFilled /></el-icon>
+          <span>演示账号</span>
+        </div>
+        <div class="demo-content">
+          <p>账号：demo</p>
+          <p>密码：123456</p>
+          <el-button 
+            type="primary" 
+            link 
+            @click="useDemoAccount"
+          >
+            一键体验
+          </el-button>
+        </div>
+        <div class="demo-tips">
+          <p>* 演示账号拥有完整的系统功能权限</p>
+          <p>* 系统每小时自动重置数据，请谨慎操作</p>
+          <p>* 如需正式使用，请添加客服微信开通正式账号</p>
+        </div>
+      </div>
+
       <!-- 登录表单 -->
       <el-form 
         ref="formRef" 
@@ -53,10 +77,16 @@
         </el-form-item>
       </el-form>
 
-      <!-- 底部版权信息 -->
+      <!-- 修改底部信息，添加申请试用入口 -->
       <div class="footer">
-        <p class="contact">联系方式：微信号：Curiosity_Alive / 15520768906</p>
-        <p>© {{ new Date().getFullYear() }} 海南顶顶软件科技有限公司 版权所有</p>
+        <div class="contact-info">
+          <p class="contact">系统购买或试用请添加客服微信：</p>
+          <p class="contact-detail">
+            <el-icon><ChatDotRound /></el-icon>
+            Curiosity_Alive / 15520768906
+          </p>
+        </div>
+        <p class="copyright">© {{ new Date().getFullYear() }} 海南顶顶软件科技有限公司 版权所有</p>
       </div>
     </div>
   </div>
@@ -66,7 +96,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { User, Lock } from '@element-plus/icons-vue';
+import { User, Lock, InfoFilled, ChatDotRound } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { login } from '../api/user';
 import { useUserStore } from '../stores/user';
@@ -120,6 +150,13 @@ const handleLogin = async () => {
       }
     }
   });
+};
+
+// 一键使用演示账号
+const useDemoAccount = () => {
+  form.value.username = 'demo';
+  form.value.password = '123456';
+  handleLogin();
 };
 </script>
 
@@ -255,16 +292,66 @@ const handleLogin = async () => {
   }
 }
 
-.footer {
-  text-align: center;
-  margin-top: 40px;
-  color: #909399;
-  font-size: 14px;
+.demo-account {
+  background: #f0f9ff;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+  border: 1px solid #91d5ff;
 
+  .demo-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #1890ff;
+    font-weight: 500;
+    margin-bottom: 12px;
+  }
+
+  .demo-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 0;
+    
+    p {
+      margin: 0;
+      color: #666;
+    }
+  }
+
+  .demo-tips {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #999;
+    
+    p {
+      margin: 4px 0;
+    }
+  }
+}
+
+.contact-info {
+  margin-bottom: 16px;
+  
   .contact {
     margin-bottom: 8px;
     color: #606266;
   }
+
+  .contact-detail {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #409EFF;
+    font-weight: 500;
+  }
+}
+
+.copyright {
+  color: #909399;
+  margin: 0;
 }
 
 // 响应式设计

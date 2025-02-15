@@ -112,43 +112,22 @@ class UserService:
         return True
     
     @staticmethod
-    def verify_password(plain_password: str, hashed_password: str) -> bool:
-        print(f"Verifying password: {plain_password[:2]}***")
-        result = pwd_context.verify(plain_password, hashed_password)
-        print(f"Password verification result: {result}")
-        return result
-    
+    def get_password_hash(password: str) -> str:
+        """获取密码哈希值"""
+        return pwd_context.hash(password)
+
     @staticmethod
-    def authenticate_user(db: Session, username: str, password: str):
+    def verify_password(plain_password: str, hashed_password: str) -> bool:
+        """验证密码"""
+        return pwd_context.verify(plain_password, hashed_password)
+
+    @staticmethod
+    def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
         """验证用户"""
-        try:
-            user = db.query(User).filter(User.username == username).first()
-            if not user or not UserService.verify_password(password, user.hashed_password):
-                return None
-            
-            # 检查用户是否被禁用
-            if not user.is_active:
-                raise ValueError("账号已被禁用")
-            
-            # 检查权限字符串格式
-            if user.permissions:
-                # 移除多余的括号和空格
-                permissions = user.permissions.strip('[]() ').split(',')
-                # 清理每个权限字符串
-                permissions = [p.strip('\'\" ') for p in permissions if p.strip()]
-                # 重新保存格式化后的权限字符串
-                user.permissions = ','.join(permissions)
-            
-            # 更新最后登录时间为本地时间
-            user.last_login = datetime.now()
-            db.commit()
-            
-            return user
-            
-        except Exception as e:
-            print(f"Error during authentication: {str(e)}")
-            db.rollback()
-            raise
+        user = UserService.get_user_by_username(db, username)
+        if not user or not UserService.verify_password(password, user.hashed_password):
+            return None
+        return user
     
     @staticmethod
     def update_last_login(db: Session, user: User):

@@ -1,5 +1,6 @@
-from .inventory import Inventory, Transaction  # 先导入 inventory
-from .user import User, Store  # 后导入 user
+from .user import User, Store  # 先导入 user 模型
+from .inventory import Inventory, Transaction  # 再导入 inventory 模型
+from .log import OperationLog  # 最后导入 log 模型
 
-# 这样可以确保所有模型都被正确加载
-__all__ = ['User', 'Store', 'Inventory', 'Transaction'] 
+# 确保所有模型都被正确加载
+__all__ = ['User', 'Store', 'Inventory', 'Transaction', 'OperationLog'] 
