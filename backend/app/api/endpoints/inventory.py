@@ -73,7 +73,6 @@ def create_inventory(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in create_inventory: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"创建商品失败: {str(e)}"
@@ -121,9 +120,12 @@ def stock_out(
     )
 
 @router.get("/stats", response_model=InventoryStats)
-def get_inventory_stats(db: Session = Depends(get_db)):
+def get_inventory_stats(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
     """获取库存统计信息"""
-    return InventoryService.get_inventory_stats(db)
+    return InventoryService.get_inventory_stats(db, current_user.store_id)
 
 @router.get("/transactions", response_model=TransactionResponse)
 def list_transactions(
@@ -188,7 +190,12 @@ def get_performance_stats(
         end_date = next_month - timedelta(days=next_month.day)
         end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
-    return InventoryService.get_performance_stats(db, start_date, end_date, current_user.store_id)
+    return InventoryService.get_performance_stats(
+        db, 
+        start_date, 
+        end_date,
+        current_user.store_id
+    )
 
 @router.get("/analysis/{barcode}", response_model=ProductAnalysis)
 def get_product_analysis(
@@ -257,4 +264,8 @@ def search_inventory(
     current_user = Depends(get_current_active_user)
 ):
     """搜索商品"""
-    return InventoryService.search_inventory(db, search_text, current_user.store_id) 
+    return InventoryService.search_inventory(
+        db, 
+        search_text, 
+        current_user.store_id
+    ) 

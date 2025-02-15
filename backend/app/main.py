@@ -1,8 +1,7 @@
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import settings
-from app.api.endpoints import inventory, user, log
+from app.api.endpoints import inventory, user, log, auth
 from app.db.session import engine, Base
 from app.middleware.logging import logging_middleware
 from contextlib import asynccontextmanager
@@ -99,14 +98,11 @@ app.include_router(
     tags=["logs"]
 )
 
-# 添加一个测试路由专门用于测试登录
-@app.post("/api/v1/auth/test-login")
-async def test_login(request: Request):
-    body = await request.body()
-    print("\n=== Test Login Request ===")
-    print(f"Body: {body.decode()}")
-    print("=========================\n")
-    return {"message": "Login route reached"}
+# 认证相关路由
+app.include_router(
+    auth.router,
+    tags=["auth"]
+)
 
 # 打印所有路由
 @app.on_event("startup")

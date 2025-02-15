@@ -1,11 +1,10 @@
 from sqlalchemy import (
     Column, Integer, String, Boolean, ForeignKey, 
-    JSON, DateTime
+    DateTime
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.session import Base
-from datetime import datetime
 
 class Store(Base):
     __tablename__ = "stores"

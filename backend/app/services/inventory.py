@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, or_, select
-from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
@@ -16,9 +15,7 @@ from app.schemas.inventory import (
     InventoryCreate, 
     InventoryUpdate, 
     StockIn, 
-    StockOut,
-    InventoryStats,
-    PerformanceStats
+    StockOut
 )
 
 class InventoryService:
@@ -96,7 +93,6 @@ class InventoryService:
             raise
         except Exception as e:
             db.rollback()
-            logger.error(f"Error creating inventory: {str(e)}")
             # 检查是否是数据库唯一性约束错误
             if 'unique constraint' in str(e).lower():
                 if 'barcode' in str(e).lower():
@@ -146,7 +142,6 @@ class InventoryService:
             
         except DBAPIError as e:
             db.rollback()
-            logger.error(f"Database error while acquiring lock: {str(e)}")
             raise HTTPException(
                 status_code=500,
                 detail="数据库锁定失败，请重试"
@@ -198,7 +193,6 @@ class InventoryService:
                 
             except Exception as e:
                 db.rollback()
-                logger.error(f"Error in stock_in: {str(e)}")
                 raise HTTPException(
                     status_code=500,
                     detail="入库操作失败"
@@ -256,19 +250,22 @@ class InventoryService:
                 
             except Exception as e:
                 db.rollback()
-                logger.error(f"Error in stock_out: {str(e)}")
                 raise HTTPException(
                     status_code=500,
                     detail="出库操作失败"
                 )
     
     @staticmethod
-    def get_inventory_stats(db: Session) -> dict:
+    def get_inventory_stats(db: Session, store_id: int) -> dict:
         # 计算库存总值（使用最近的进货价格）
         inventory_values = []
-        for inv in db.query(Inventory).all():
+        for inv in db.query(Inventory).filter(Inventory.store_id == store_id).all():
             last_in_price = db.query(Transaction.price)\
-                .filter(Transaction.barcode == inv.barcode, Transaction.type == 'in')\
+                .filter(
+                    Transaction.barcode == inv.barcode,
+                    Transaction.type == 'in',
+                    Transaction.store_id == store_id
+                )\
                 .order_by(Transaction.timestamp.desc())\
                 .first()
             if last_in_price:
@@ -284,6 +281,7 @@ class InventoryService:
             func.sum(Transaction.total)
         ).filter(
             Transaction.type == 'out',
+            Transaction.store_id == store_id,
             Transaction.timestamp.between(today_start, today_end)
         ).scalar() or Decimal('0')
         
@@ -293,6 +291,7 @@ class InventoryService:
             func.sum(Transaction.total)
         ).filter(
             Transaction.type == 'out',
+            Transaction.store_id == store_id,
             Transaction.timestamp.between(week_start, today_end)
         ).scalar() or Decimal('0')
         
@@ -304,6 +303,7 @@ class InventoryService:
             Inventory.warning_stock,
             Inventory.unit
         ).filter(
+            Inventory.store_id == store_id,
             Inventory.stock <= Inventory.warning_stock
         ).all()
         
@@ -320,7 +320,7 @@ class InventoryService:
         ]
         
         # 获取热销产品
-        hot_products = InventoryService.get_hot_products(db)
+        hot_products = InventoryService.get_hot_products(db, store_id)
         
         return {
             "total_value": total_value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
@@ -783,7 +783,6 @@ class InventoryService:
             }
             
         except Exception as e:
-            logger.error(f"Error getting statistics: {str(e)}")
             raise 
 
     @staticmethod

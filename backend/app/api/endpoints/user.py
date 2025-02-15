@@ -10,33 +10,11 @@ from fastapi import Request
 
 router = APIRouter()
 
-@router.post("/login")
-async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
-):
-    print("\n=== Login Request ===")
-    print(f"Username: {form_data.username}")
-    
-    user = UserService.authenticate_user(db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="用户名或密码错误",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    access_token = create_access_token(data={"sub": user.username})
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": user
-    }
-
-@router.get("/users/me", response_model=User)
+@router.get("/me", response_model=User)
 def read_users_me(
     current_user: User = Depends(get_current_active_user)
 ):
+    """获取当前用户信息"""
     return current_user
 
 @router.get("/users", response_model=List[User])
