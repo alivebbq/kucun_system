@@ -76,23 +76,39 @@ const handleLogout = async () => {
 .layout {
   height: 100vh;
   width: 100vw;
+  display: flex;
+  overflow: hidden;
 }
 
 .main-container {
   flex: 1;
-  width: calc(100% - 180px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .el-main {
+  flex: 1;
   padding: 0;
-  /* 移除默认内边距 */
-  width: 100%;
-  max-width: 100%;
+  overflow-y: auto;
   overflow-x: hidden;
 }
 
 .menu {
-  height: 100%;
+  height: 100vh;
+  border-right: none;
+}
+
+.el-aside {
+  background-color: #304156;
+  height: 100vh;
+  width: 180px !important;
+}
+
+.el-header {
+  background-color: #fff;
+  border-bottom: 1px solid #dcdfe6;
+  padding: 0 20px;
 }
 
 .header-content {
@@ -100,20 +116,6 @@ const handleLogout = async () => {
   justify-content: space-between;
   align-items: center;
   height: 100%;
-}
-
-.el-aside {
-  background-color: #304156;
-  width: 180px !important;
-}
-
-.el-menu {
-  border-right: none;
-}
-
-.el-header {
-  background-color: #fff;
-  border-bottom: 1px solid #dcdfe6;
 }
 
 .user-info {

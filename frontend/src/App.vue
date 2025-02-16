@@ -20,11 +20,14 @@ onMounted(async () => {
 html, body {
   margin: 0;
   padding: 0;
-  height: 100%;
+  height: 100vh;
+  width: 100vw;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  overflow: hidden; /* 防止出现滚动条 */
 }
 
 #app {
-  height: 100%;
+  height: 100vh;
+  width: 100vw;
 }
 </style>
