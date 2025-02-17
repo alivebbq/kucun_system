@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, CheckConstraint, Boolean, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, CheckConstraint, Boolean, UniqueConstraint, Index
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.session import Base
@@ -21,7 +21,9 @@ class Inventory(Base):
     __table_args__ = (
         UniqueConstraint('barcode', 'store_id', name='uq_inventory_barcode_store'),
         UniqueConstraint('name', 'store_id', name='uq_inventory_name_store'),
-        CheckConstraint('warning_stock >= 0', name='check_warning_stock_positive')
+        CheckConstraint('warning_stock >= 0', name='check_warning_stock_positive'),
+        CheckConstraint('stock >= 0', name='check_stock_positive'),  # 添加库存非负检查
+        Index('idx_inventory_store_name', store_id),  # 用于店铺内商品名称搜索
     )
     
     # 关联关系
@@ -32,7 +34,8 @@ class Transaction(Base):
     __tablename__ = "transactions"
     
     id = Column(Integer, primary_key=True, index=True)
-    barcode = Column(String(13), ForeignKey("inventory.barcode"), nullable=False)
+    inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=False)
+    barcode = Column(String(13), nullable=False)
     type = Column(String(10), nullable=False)
     quantity = Column(Integer, nullable=False)
     price = Column(Numeric(10, 2), nullable=False)
@@ -48,4 +51,8 @@ class Transaction(Base):
     
     __table_args__ = (
         CheckConstraint(type.in_(['in', 'out']), name='check_transaction_type'),
+        CheckConstraint('quantity > 0', name='check_quantity_positive'),
+        CheckConstraint('price >= 0', name='check_price_positive'),
+        CheckConstraint('total = quantity * price', name='check_total_calculation'),
+        Index('idx_trans_store_time', store_id)
     ) 

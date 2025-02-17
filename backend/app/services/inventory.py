@@ -167,6 +167,7 @@ class InventoryService:
                     
                     # 记录交易
                     transaction = Transaction(
+                        inventory_id=inventory.id,
                         barcode=stock_in.barcode,
                         type="in",
                         quantity=stock_in.quantity,
@@ -224,6 +225,7 @@ class InventoryService:
                     
                     # 记录交易
                     transaction = Transaction(
+                        inventory_id=inventory.id,
                         barcode=stock_out.barcode,
                         type="out",
                         quantity=stock_out.quantity,
