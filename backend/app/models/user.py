@@ -19,6 +19,8 @@ class Store(Base):
     inventory = relationship("Inventory", back_populates="store")
     transactions = relationship("Transaction", back_populates="store")
     operation_logs = relationship("OperationLog", back_populates="store")
+    companies = relationship("Company", back_populates="store")
+    payments = relationship("Payment", back_populates="store")
 
 class User(Base):
     __tablename__ = "users"
@@ -38,6 +40,7 @@ class User(Base):
     store = relationship("Store", back_populates="users")
     transactions = relationship("Transaction", back_populates="operator")
     operation_logs = relationship("OperationLog", back_populates="operator")
+    payments = relationship("Payment", back_populates="operator")
 
     @property
     def permission_list(self):

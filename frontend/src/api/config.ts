@@ -17,9 +17,8 @@ api.interceptors.request.use(
         console.log('=== API Request ===', {
             url: config.url,
             method: config.method,
-            headers: config.headers,
-            data: config.data,
-            baseURL: config.baseURL
+            params: config.params,
+            headers: config.headers
         });
 
         const userStore = useUserStore();
@@ -32,7 +31,7 @@ api.interceptors.request.use(
         return config;
     },
     (error) => {
-        console.error('Request interceptor error:', error);
+        console.error('Request error:', error);
         return Promise.reject(error);
     }
 );

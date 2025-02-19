@@ -85,6 +85,28 @@
             <template #prefix>¥</template>
           </el-input>
         </el-form-item>
+        <el-form-item label="客户" prop="company_id">
+          <el-select 
+            v-model="form.company_id"
+            placeholder="请选择客户"
+            class="form-select"
+          >
+            <el-option
+              v-for="company in companies"
+              :key="company.id"
+              :label="company.name"
+              :value="company.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="备注" prop="notes">
+          <el-input
+            v-model="form.notes"
+            type="textarea"
+            :rows="2"
+            placeholder="请输入备注信息（选填）"
+          />
+        </el-form-item>
         <el-form-item>
           <el-button 
             type="primary" 
@@ -118,6 +140,14 @@
       >
         <el-table-column prop="barcode" label="条形码" width="150" />
         <el-table-column prop="name" label="商品名称" />
+        <el-table-column 
+          label="客户" 
+          min-width="120"
+        >
+          <template #default="{ row }">
+            {{ row.company?.name || row.company_name || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="quantity" label="数量" width="100" align="right" />
         <el-table-column prop="price" label="单价" width="120" align="right">
           <template #default="{ row }">
@@ -127,6 +157,11 @@
         <el-table-column prop="total" label="总金额" width="120" align="right">
           <template #default="{ row }">
             <span class="amount">¥{{ formatNumber(row.total) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="notes" label="备注" min-width="120">
+          <template #default="{ row }">
+            {{ row.notes || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="operator_name" label="操作人" width="120" />
@@ -191,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Search, List } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -205,16 +240,22 @@ import {
   searchInventory,
   getInventoryList
 } from '../api/inventory';
+import { getCompanies } from '../api/company';
+import type { Company } from '../types/company';
+import { CompanyType } from '../types/company';
 
 const formRef = ref<FormInstance>();
 const loading = ref(false);
 const currentProduct = ref<Inventory | null>(null);
 const recentRecords = ref<Transaction[]>([]);
 
+const companies = ref<Company[]>([]);
 const form = ref({
   barcode: '',
   quantity: '',
-  price: ''
+  price: '',
+  company_id: undefined as number | undefined,
+  notes: ''
 });
 
 // 表单验证规则
@@ -252,6 +293,9 @@ const rules = {
         }
       }
     }
+  ],
+  company_id: [
+    { required: true, message: '请选择客户', trigger: 'change' }
   ]
 };
 
@@ -381,7 +425,9 @@ const handleSubmit = async () => {
     await stockOut({
       barcode: form.value.barcode,
       quantity: quantity,
-      price: form.value.price
+      price: form.value.price,
+      company_id: form.value.company_id!,
+      notes: form.value.notes
     });
     ElMessage.success('出库成功');
 
@@ -389,7 +435,9 @@ const handleSubmit = async () => {
     form.value = {
       barcode: '',
       quantity: '',
-      price: ''
+      price: '',
+      company_id: undefined,
+      notes: ''
     };
     currentProduct.value = null;
     formRef.value.resetFields();
@@ -462,8 +510,24 @@ const loadRecentRecords = async () => {
   }
 };
 
+// 加载客户列表
+const loadCompanies = async () => {
+  try {
+    console.log('Loading customers...');
+    const response = await getCompanies(CompanyType.CUSTOMER);
+    companies.value = response;
+    console.log('Customers loaded:', companies.value);
+  } catch (error: any) {
+    console.error('Failed to load customers:', error);
+    ElMessage.error(error.response?.data?.detail || '加载客户列表失败');
+  }
+};
+
 // 初始化加载
 loadRecentRecords();
+onMounted(() => {
+  loadCompanies();
+});
 </script>
 
 <style lang="scss" scoped>

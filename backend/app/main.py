@@ -1,7 +1,7 @@
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import inventory, user, log, auth
+from app.api.endpoints import inventory, user, log, auth, company
 from app.db.session import engine, Base
 from app.middleware.logging import logging_middleware
 from contextlib import asynccontextmanager
@@ -102,6 +102,12 @@ app.include_router(
 app.include_router(
     auth.router,
     tags=["auth"]
+)
+
+# 公司相关路由
+app.include_router(
+    company.router,
+    tags=["companies"]
 )
 
 # 打印所有路由

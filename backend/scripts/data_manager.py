@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 import random
 from decimal import Decimal
 import argparse
+from app.models.company import Company, CompanyType
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
@@ -97,6 +98,35 @@ def create_inventory_and_transactions(
     time_points: list[datetime]
 ):
     """创建商品和交易记录"""
+    # 验证是否有公司数据
+    supplier_count = db.query(Company).filter(
+        Company.store_id == store_id,
+        Company.type == CompanyType.SUPPLIER
+    ).count()
+    
+    customer_count = db.query(Company).filter(
+        Company.store_id == store_id,
+        Company.type == CompanyType.CUSTOMER
+    ).count()
+    
+    if supplier_count == 0 or customer_count == 0:
+        raise ValueError("请先确保已创建供应商和客户数据")
+
+    # 获取所有供应商和客户
+    suppliers = db.query(Company).filter(
+        Company.store_id == store_id,
+        Company.type == CompanyType.SUPPLIER
+    ).all()
+    
+    customers = db.query(Company).filter(
+        Company.store_id == store_id,
+        Company.type == CompanyType.CUSTOMER
+    ).all()
+    
+    if not suppliers or not customers:
+        logger.error("未找到供应商或客户数据")
+        return
+
     for i, product in enumerate(products):
         # 创建商品
         barcode = f"8900{str(i+1).zfill(6)}"
@@ -116,6 +146,7 @@ def create_inventory_and_transactions(
         for transaction_time in time_points:
             # 入库记录
             if random.random() < 0.2:  # 20%概率进货
+                supplier = random.choice(suppliers)  # 随机选择供应商
                 quantity = random.randint(10, 20)
                 price = round(random.uniform(*product["price_range"]), 2)
                 transaction = Transaction(
@@ -127,20 +158,19 @@ def create_inventory_and_transactions(
                     total=Decimal(str(quantity * price)),
                     timestamp=transaction_time,
                     store_id=store_id,
-                    operator_id=operator_id
+                    operator_id=operator_id,
+                    company_id=supplier.id
                 )
                 db.add(transaction)
                 inventory.stock += quantity
 
             # 出库记录
-            if random.random() < 0.6 * product["sales_weight"]:
-                if inventory.stock > 0:
-                    max_sale = min(inventory.stock, 12)
-                    quantity = random.randint(1, max_sale)
-                    price = round(random.uniform(
-                        product["price_range"][0] * 1.3,
-                        product["price_range"][1] * 1.4
-                    ), 2)
+            if random.random() < 0.3 and inventory.stock > 0:
+                customer = random.choice(customers)  # 随机选择客户
+                max_quantity = min(inventory.stock, 15)
+                if max_quantity > 0:
+                    quantity = random.randint(1, max_quantity)
+                    price = round(random.uniform(*product["price_range"]) * 1.2, 2)
                     transaction = Transaction(
                         barcode=barcode,
                         inventory_id=inventory.id,
@@ -150,10 +180,13 @@ def create_inventory_and_transactions(
                         total=Decimal(str(quantity * price)),
                         timestamp=transaction_time,
                         store_id=store_id,
-                        operator_id=operator_id
+                        operator_id=operator_id,
+                        company_id=customer.id
                     )
                     db.add(transaction)
                     inventory.stock -= quantity
+
+        db.flush()
 
 def clear_store_data(db: Session, store_id: int):
     """清除店铺所有数据"""
@@ -170,29 +203,92 @@ def clear_store_data(db: Session, store_id: int):
     
     logger.info("数据清除完成")
 
-def initialize_demo_data():
-    """首次初始化演示数据"""
-    db = SessionLocal()
+def initialize_demo_data(db: Session = None):
+    """初始化演示数据"""
+    if not db:
+        db = SessionLocal()
     try:
-        # 创建或更新演示账号和商店
+        # 创建演示账号和商店
         store, user = create_or_update_demo_account(db)
         
-        # 生成演示数据
+        # 生成基础数据
         products = generate_demo_products()
         time_points = generate_time_points()
         
-        # 先提交账号创建，确保有了user.id
+        # 添加演示公司
+        demo_companies = [
+            {
+                "name": "新新超市",
+                "type": CompanyType.CUSTOMER,
+                "contact": "张经理",
+                "phone": "13800138000",
+                "address": "市中心路123号"
+            },
+            {
+                "name": "顺丰物流",
+                "type": CompanyType.SUPPLIER,
+                "contact": "李经理",
+                "phone": "13900139000",
+                "address": "开发区456号"
+            },
+            {
+                "name": "双星贸易",
+                "type": CompanyType.SUPPLIER,
+                "contact": "王总",
+                "phone": "13700137000",
+                "address": "商贸城789号"
+            },
+            {
+                "name": "友谊超市",
+                "type": CompanyType.CUSTOMER,
+                "contact": "赵店长",
+                "phone": "13800138000",
+                "address": "建设路54号"
+            },
+            {
+                "name": "德邦物流",
+                "type": CompanyType.SUPPLIER,
+                "contact": "刘主任",
+                "phone": "13900139000",
+                "address": "胜利路40号"
+            },
+            {
+                "name": "红星幼儿园",
+                "type": CompanyType.CUSTOMER,
+                "contact": "田园长",
+                "phone": "13700137000",
+                "address": "幸福街12号"
+            }
+            
+        ]
+
+        # 先创建公司
+        for company_data in demo_companies:
+            company = db.query(Company).filter(
+                Company.name == company_data["name"],
+                Company.store_id == store.id
+            ).first()
+            
+            if not company:
+                company = Company(
+                    **company_data,
+                    store_id=store.id
+                )
+                db.add(company)
+                logger.info(f"创建演示公司: {company_data['name']}")
+        
+        # 提交公司创建
         db.commit()
         
-        # 创建商品和交易记录
+        # 再创建商品和交易记录
         create_inventory_and_transactions(db, store.id, user.id, products, time_points)
         
         db.commit()
         logger.info("演示数据初始化成功！")
         
     except Exception as e:
-        logger.error(f"初始化演示数据失败: {e}")
         db.rollback()
+        logger.error(f"初始化演示数据失败: {str(e)}")
         raise
     finally:
         db.close()

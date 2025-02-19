@@ -11,6 +11,7 @@ import time
 from app.models.inventory import Inventory, Transaction
 from app.models.user import User
 from app.models.log import OperationLog
+from app.models.company import Company
 from app.schemas.inventory import (
     InventoryCreate, 
     InventoryUpdate, 
@@ -150,112 +151,80 @@ class InventoryService:
     @staticmethod
     def stock_in(db: Session, stock_in: StockIn, store_id: int, operator_id: int):
         """商品入库"""
-        max_retries = 3
-        retry_count = 0
-        
-        while retry_count < max_retries:
-            try:
-                with InventoryService._get_lock(db, stock_in.barcode, store_id) as inventory:
-                    if not inventory.is_active:
-                        raise HTTPException(
-                            status_code=400,
-                            detail="商品已禁用，无法入库"
-                        )
-                    
-                    # 更新库存数量
-                    inventory.stock += stock_in.quantity
-                    
-                    # 记录交易
-                    transaction = Transaction(
-                        inventory_id=inventory.id,
-                        barcode=stock_in.barcode,
-                        type="in",
-                        quantity=stock_in.quantity,
-                        price=stock_in.price,
-                        total=stock_in.quantity * stock_in.price,
-                        store_id=store_id,
-                        operator_id=operator_id
-                    )
-                    
-                    db.add(transaction)
-                    db.commit()
-                    db.refresh(inventory)
-                    return inventory
-                    
-            except IntegrityError:
-                db.rollback()
-                retry_count += 1
-                if retry_count >= max_retries:
-                    raise HTTPException(
-                        status_code=500,
-                        detail="操作失败，请重试"
-                    )
-                time.sleep(0.1 * retry_count)  # 递增延迟重试
-                
-            except Exception as e:
-                db.rollback()
+        print("Received stock_in data:", stock_in.dict())
+        with InventoryService._get_lock(db, stock_in.barcode, store_id) as inventory:
+            if not inventory.is_active:
                 raise HTTPException(
-                    status_code=500,
-                    detail="入库操作失败"
+                    status_code=400,
+                    detail="商品已禁用，无法入库"
                 )
+            
+            # 验证 company_id
+            if not stock_in.company_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="必须指定供应商"
+                )
+            
+            # 更新库存数量
+            inventory.stock += stock_in.quantity
+            
+            # 添加交易记录
+            transaction = Transaction(
+                inventory_id=inventory.id,
+                barcode=stock_in.barcode,
+                type="in",
+                quantity=stock_in.quantity,
+                price=stock_in.price,
+                total=stock_in.quantity * stock_in.price,
+                store_id=store_id,
+                operator_id=operator_id,
+                company_id=stock_in.company_id,
+                notes=stock_in.notes
+            )
+            
+            db.add(transaction)
+            db.commit()
+            db.refresh(inventory)
+            return inventory
 
     @staticmethod
     def stock_out(db: Session, stock_out: StockOut, store_id: int, operator_id: int):
         """商品出库"""
-        max_retries = 3
-        retry_count = 0
-        
-        while retry_count < max_retries:
-            try:
-                with InventoryService._get_lock(db, stock_out.barcode, store_id) as inventory:
-                    if not inventory.is_active:
-                        raise HTTPException(
-                            status_code=400,
-                            detail="商品已禁用，无法出库"
-                        )
-                    
-                    if inventory.stock < stock_out.quantity:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"库存不足 (当前库存: {inventory.stock})"
-                        )
-                    
-                    # 更新库存数量
-                    inventory.stock -= stock_out.quantity
-                    
-                    # 记录交易
-                    transaction = Transaction(
-                        inventory_id=inventory.id,
-                        barcode=stock_out.barcode,
-                        type="out",
-                        quantity=stock_out.quantity,
-                        price=stock_out.price,
-                        total=stock_out.quantity * stock_out.price,
-                        store_id=store_id,
-                        operator_id=operator_id
-                    )
-                    
-                    db.add(transaction)
-                    db.commit()
-                    db.refresh(inventory)
-                    return inventory
-                    
-            except IntegrityError:
-                db.rollback()
-                retry_count += 1
-                if retry_count >= max_retries:
-                    raise HTTPException(
-                        status_code=500,
-                        detail="操作失败，请重试"
-                    )
-                time.sleep(0.1 * retry_count)
-                
-            except Exception as e:
-                db.rollback()
+        with InventoryService._get_lock(db, stock_out.barcode, store_id) as inventory:
+            if not inventory.is_active:
                 raise HTTPException(
-                    status_code=500,
-                    detail="出库操作失败"
+                    status_code=400,
+                    detail="商品已禁用，无法出库"
                 )
+            
+            if inventory.stock < stock_out.quantity:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"库存不足 (当前库存: {inventory.stock})"
+                )
+            
+            # 更新库存数量
+            inventory.stock -= stock_out.quantity
+            
+            # 添加公司相关信息
+            transaction = Transaction(
+                inventory_id=inventory.id,
+                barcode=stock_out.barcode,
+                type="out",
+                quantity=stock_out.quantity,
+                price=stock_out.price,
+                total=stock_out.quantity * stock_out.price,
+                store_id=store_id,
+                operator_id=operator_id,
+                company_id=stock_out.company_id,
+                notes=stock_out.notes
+            )
+            
+            db.add(transaction)
+            db.commit()
+            db.refresh(inventory)
+            return inventory
     
     @staticmethod
     def get_inventory_stats(db: Session, store_id: int) -> dict:
@@ -343,57 +312,57 @@ class InventoryService:
         skip: int = 0,
         limit: int = 100
     ):
-        """获取交易记录时包含操作人信息"""
-        base_query = db.query(
-            Transaction,
-            Inventory.name,
-            User.name.label('operator_name')
-        ).join(
-            Inventory,
-            Transaction.barcode == Inventory.barcode
-        ).join(
-            User,
-            Transaction.operator_id == User.id
-        ).filter(
-            Transaction.store_id == store_id
+        """获取交易记录"""
+        # 基础查询
+        query = (
+            db.query(
+                Transaction,
+                Inventory.name.label('name'),
+                User.name.label('operator_name'),
+                Company.name.label('company_name')
+            )
+            .join(Inventory, Transaction.barcode == Inventory.barcode)
+            .join(User, Transaction.operator_id == User.id)
+            .outerjoin(Company, Transaction.company_id == Company.id)
+            .filter(Transaction.store_id == store_id)
         )
         
-        # 添加过滤条件，只在有值时添加
-        if barcode and barcode.strip():
-            base_query = base_query.filter(Transaction.barcode == barcode)
+        # 添加过滤条件
         if type and type.strip():
-            base_query = base_query.filter(Transaction.type == type)
+            query = query.filter(Transaction.type == type)
         if start_date:
-            base_query = base_query.filter(Transaction.timestamp >= start_date)
+            query = query.filter(Transaction.timestamp >= start_date)
         if end_date:
-            base_query = base_query.filter(Transaction.timestamp <= end_date)
+            query = query.filter(Transaction.timestamp <= end_date)
         
-        # 获取总数
-        total = base_query.count()
+        # 添加排序条件，按时间倒序排列
+        query = query.order_by(Transaction.timestamp.desc())
         
         # 获取分页数据
-        results = base_query.order_by(Transaction.timestamp.desc())\
-            .offset(skip)\
-            .limit(limit)\
-            .all()
+        transactions = query.offset(skip).limit(limit).all()
+        
+        # 转换为响应格式
+        items = []
+        for t, name, operator_name, company_name in transactions:
+            items.append({
+                "id": t.id,
+                "barcode": t.barcode,
+                "type": t.type,
+                "name": name,
+                "quantity": t.quantity,
+                "price": t.price,
+                "total": t.total,
+                "timestamp": t.timestamp,
+                "operator_id": t.operator_id,
+                "operator_name": operator_name,
+                "company_id": t.company_id,
+                "company_name": company_name,
+                "notes": t.notes
+            })
         
         return {
-            "items": [
-                {
-                    "id": transaction.id,
-                    "barcode": transaction.barcode,
-                    "name": name,
-                    "type": transaction.type,
-                    "quantity": transaction.quantity,
-                    "price": transaction.price,
-                    "total": transaction.total,
-                    "timestamp": transaction.timestamp,
-                    "operator_id": transaction.operator_id,
-                    "operator_name": operator_name
-                }
-                for transaction, name, operator_name in results
-            ],
-            "total": total
+            "items": items,
+            "total": query.count()
         }
     
     @staticmethod
@@ -826,3 +795,43 @@ class InventoryService:
         except Exception as e:
             db.rollback()
             raise 
+
+    @staticmethod
+    def get_stock_in_records(db: Session, skip: int = 0, limit: int = 100):
+        """获取入库记录，包含公司信息"""
+        records = (
+            db.query(Transaction)
+            .join(Company, Transaction.company_id == Company.id)
+            .filter(Transaction.type == "in")
+            .order_by(Transaction.timestamp.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        
+        # 确保每条记录都包含公司信息
+        for record in records:
+            if record.company:
+                record.company_name = record.company.name
+        
+        return records 
+
+    @staticmethod
+    def get_stock_out_records(db: Session, skip: int = 0, limit: int = 100):
+        """获取出库记录，包含公司信息"""
+        records = (
+            db.query(Transaction)
+            .join(Company, Transaction.company_id == Company.id)
+            .filter(Transaction.type == "out")
+            .order_by(Transaction.timestamp.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        
+        # 确保每条记录都包含公司信息
+        for record in records:
+            if record.company:
+                record.company_name = record.company.name
+        
+        return records 

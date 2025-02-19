@@ -85,6 +85,28 @@
             <template #prefix>¥</template>
           </el-input>
         </el-form-item>
+        <el-form-item label="供应商" prop="company_id">
+          <el-select 
+            v-model="form.company_id"
+            placeholder="请选择供应商"
+            class="form-select"
+          >
+            <el-option
+              v-for="company in companies"
+              :key="company.id"
+              :label="company.name"
+              :value="company.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="备注" prop="notes">
+          <el-input
+            v-model="form.notes"
+            type="textarea"
+            :rows="2"
+            placeholder="请输入备注信息（选填）"
+          />
+        </el-form-item>
         <el-form-item>
           <el-button 
             type="primary" 
@@ -115,6 +137,14 @@
       >
         <el-table-column prop="barcode" label="条形码" width="150" />
         <el-table-column prop="name" label="商品名称" />
+        <el-table-column 
+          label="供应商" 
+          min-width="120"
+        >
+          <template #default="{ row }">
+            {{ row.company?.name || row.company_name || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="quantity" label="数量" width="100" align="right" />
         <el-table-column prop="price" label="单价" width="120" align="right">
           <template #default="{ row }">
@@ -124,6 +154,11 @@
         <el-table-column prop="total" label="总金额" width="120" align="right">
           <template #default="{ row }">
             <span class="amount">¥{{ formatNumber(row.total) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="notes" label="备注" min-width="120">
+          <template #default="{ row }">
+            {{ row.notes || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="operator_name" label="操作人" width="120" />
@@ -191,16 +226,22 @@ import {
   searchInventory,
   getInventoryList
 } from '../api/inventory';
+import { getCompanies } from '../api/company';
+import type { Company } from '../types/company';
+import { CompanyType } from '../types/company';
 
 const formRef = ref<FormInstance>();
 const loading = ref(false);
 const currentProduct = ref<Inventory | null>(null);
 const recentRecords = ref<Transaction[]>([]);
 
+const companies = ref<Company[]>([]);
 const form = ref({
   barcode: '',
-  quantity: '',
-  price: ''
+  quantity: 1,
+  price: 0,
+  company_id: undefined as number | undefined,
+  notes: ''
 });
 
 const rules: FormRules = {
@@ -209,29 +250,14 @@ const rules: FormRules = {
   ],
   quantity: [
     { required: true, message: '请输入数量', trigger: 'blur' },
-    { 
-      validator: (rule: any, value: string) => {
-        const num = parseInt(value);
-        if (isNaN(num) || num <= 0) {
-          return Promise.reject('请输入大于0的数量');
-        }
-        return Promise.resolve();
-      },
-      trigger: 'blur'
-    }
+    { type: 'number', min: 1, message: '数量必须大于0', trigger: 'blur' }
   ],
   price: [
     { required: true, message: '请输入单价', trigger: 'blur' },
-    {
-      validator: (rule: any, value: string) => {
-        const num = parseFloat(value);
-        if (isNaN(num) || num < 0) {
-          return Promise.reject('请输入有效的单价');
-        }
-        return Promise.resolve();
-      },
-      trigger: 'blur'
-    }
+    { type: 'number', min: 0, message: '单价不能小于0', trigger: 'blur' }
+  ],
+  company_id: [
+    { required: true, message: '请选择供应商', trigger: 'change' }
   ]
 };
 
@@ -262,12 +288,12 @@ const formatDate = (dateStr: string) => {
   });
 };
 
-// 搜索建议
+// 搜索商品
 const querySearch = async (queryString: string) => {
   if (!queryString) return [];
   try {
     const response = await searchInventory(queryString);
-    return response.map(item => ({
+    return response.map((item: Inventory) => ({
       value: item.barcode,
       label: `${item.name} (${item.barcode})`,
       ...item
@@ -293,76 +319,92 @@ const handleSelect = (item: any) => {
 const loadRecentRecords = async () => {
   try {
     const response = await getTransactions({
-      type: 'in',  // 只获取入库记录
+      type: 'in',
       limit: 10
     });
-    recentRecords.value = response.items;  // 使用 response.items
+    recentRecords.value = response.items;
   } catch (error) {
     console.error('加载入库记录失败:', error);
     ElMessage.error('加载入库记录失败');
   }
 };
 
+// 重置表单
+const resetForm = () => {
+  form.value = {
+    barcode: '',
+    quantity: 1,
+    price: 0,
+    company_id: undefined,
+    notes: ''
+  };
+  currentProduct.value = null;
+  formRef.value?.resetFields();
+  loadRecentRecords();
+};
+
 // 处理数量输入
 const handleQuantityInput = (value: string) => {
-  // 只允许输入正整数
   const newValue = value.replace(/[^\d]/g, '');
   if (newValue === '') {
-    form.value.quantity = '';
+    form.value.quantity = 1;
   } else {
     const num = parseInt(newValue);
-    form.value.quantity = num > 0 ? num : '';
+    form.value.quantity = num > 0 ? num : 1;
   }
 };
 
 // 处理价格输入
 const handlePriceInput = (value: string) => {
-  // 移除非数字和小数点
   let newValue = value.replace(/[^\d.]/g, '');
-  // 确保只有一个小数点
   const parts = newValue.split('.');
   if (parts.length > 2) {
     newValue = parts[0] + '.' + parts.slice(1).join('');
   }
-  // 限制小数位数为2位
   if (parts.length === 2 && parts[1].length > 2) {
     newValue = parts[0] + '.' + parts[1].slice(0, 2);
   }
-  form.value.price = newValue;
+  form.value.price = parseFloat(newValue) || 0;
+};
+
+// 加载公司列表
+const loadCompanies = async () => {
+  try {
+    console.log('Loading suppliers...');
+    const response = await getCompanies(CompanyType.SUPPLIER);
+    companies.value = response;
+    console.log('Suppliers loaded:', companies.value);
+  } catch (error: any) {
+    console.error('Failed to load suppliers:', error);
+    ElMessage.error(error.response?.data?.detail || '加载供应商列表失败');
+  }
 };
 
 // 提交入库
 const handleSubmit = async () => {
   if (!formRef.value) return;
-
+  
   await formRef.value.validate(async (valid) => {
     if (valid) {
-      loading.value = true;
       try {
-        const quantity = parseInt(form.value.quantity);
+        if (!form.value.company_id) {
+          ElMessage.warning('请选择供应商');
+          return;
+        }
+        
         await stockIn({
           barcode: form.value.barcode,
-          quantity: quantity,
-          price: form.value.price
+          quantity: form.value.quantity,
+          price: form.value.price,
+          company_id: form.value.company_id,
+          notes: form.value.notes
         });
+        
         ElMessage.success('入库成功');
-
-        // 重置表单
-        form.value = {
-          barcode: '',
-          quantity: '',
-          price: ''
-        };
-        currentProduct.value = null;
-        formRef.value.resetFields();
-
-        // 刷新记录
-        loadRecentRecords();
-      } catch (error) {
+        resetForm();
+      } catch (error: any) {
         console.error('入库失败:', error);
-        ElMessage.error('入库失败');
-      } finally {
-        loading.value = false;
+        ElMessage.error(error.response?.data?.detail || '入库失败');
       }
     }
   });
@@ -422,6 +464,7 @@ const handleCancel = async (row: Transaction) => {
 
 onMounted(() => {
   loadRecentRecords();
+  loadCompanies();
 });
 </script>
 
@@ -477,6 +520,10 @@ onMounted(() => {
   :deep(.el-input__suffix) {
     color: #909399;
   }
+}
+
+.form-select {
+  width: 100%;
 }
 
 // 其他样式已在 common.scss 中定义

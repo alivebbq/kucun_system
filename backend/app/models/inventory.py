@@ -34,20 +34,23 @@ class Transaction(Base):
     __tablename__ = "transactions"
     
     id = Column(Integer, primary_key=True, index=True)
-    inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=False)
-    barcode = Column(String(13), nullable=False)
-    type = Column(String(10), nullable=False)
-    quantity = Column(Integer, nullable=False)
-    price = Column(Numeric(10, 2), nullable=False)
-    total = Column(Numeric(10, 2), nullable=False)
+    inventory_id = Column(Integer, ForeignKey("inventory.id"))
+    barcode = Column(String)
+    type = Column(String)  # in/out
+    quantity = Column(Integer)
+    price = Column(Numeric(10, 2))
+    total = Column(Numeric(10, 2))
+    store_id = Column(Integer, ForeignKey("stores.id"))
+    operator_id = Column(Integer, ForeignKey("users.id"))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
-    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
-    operator_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # 添加操作人ID
+    notes = Column(String(200), nullable=True)  # 添加备注字段
     
     # 关联关系
-    store = relationship("Store", back_populates="transactions")
     inventory = relationship("Inventory", back_populates="transactions")
-    operator = relationship("User", back_populates="transactions")  # 添加与操作人的关联
+    store = relationship("Store", back_populates="transactions")
+    operator = relationship("User", back_populates="transactions")
+    company = relationship("Company", back_populates="transactions")
     
     __table_args__ = (
         CheckConstraint(type.in_(['in', 'out']), name='check_transaction_type'),

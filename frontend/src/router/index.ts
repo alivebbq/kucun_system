@@ -111,6 +111,17 @@ const routes = [
                     requiresAuth: true,
                     requiresOwner: true
                 }
+            },
+            {
+                path: 'finance',
+                name: 'Finance',
+                component: () => import('../views/Finance.vue'),
+                meta: {
+                    title: '应收应付',
+                    icon: 'Money',
+                    requiresAuth: true,
+                    permission: 'finance'
+                }
             }
         ]
     },

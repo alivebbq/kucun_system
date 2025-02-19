@@ -39,11 +39,13 @@ class TransactionBase(BaseModel):
 
 # 入库请求
 class StockIn(TransactionBase):
-    pass
+    company_id: int
+    notes: Optional[str] = None
 
 # 出库请求
 class StockOut(TransactionBase):
-    pass
+    company_id: int
+    notes: Optional[str] = None
 
 # 交易响应
 class Transaction(TransactionBase):
@@ -54,6 +56,9 @@ class Transaction(TransactionBase):
     timestamp: datetime
     operator_id: int
     operator_name: str
+    company_id: Optional[int] = None
+    company_name: Optional[str] = None
+    notes: Optional[str] = None
 
     class Config:
         from_attributes = True

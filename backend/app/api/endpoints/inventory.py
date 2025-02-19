@@ -272,4 +272,26 @@ def search_inventory(
         db, 
         search_text, 
         current_user.store_id
-    ) 
+    )
+
+@router.get("/stock-in", response_model=List[StockIn])
+def get_stock_in_records(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    records = InventoryService.get_stock_in_records(db, skip=skip, limit=limit)
+    # 确保返回的数据包含company信息
+    return records 
+
+@router.get("/stock-out", response_model=List[StockOut])
+def get_stock_out_records(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    records = InventoryService.get_stock_out_records(db, skip=skip, limit=limit)
+    # 确保返回的数据包含公司信息
+    return records 

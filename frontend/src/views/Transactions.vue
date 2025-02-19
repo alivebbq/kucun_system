@@ -43,6 +43,21 @@
               />
             </el-select>
           </el-form-item>
+          <el-form-item label="公司">
+            <el-select 
+              v-model="filters.company_id" 
+              placeholder="全部" 
+              clearable
+              class="company-select"
+            >
+              <el-option
+                v-for="company in companies"
+                :key="company.id"
+                :label="company.name"
+                :value="company.id"
+              />
+            </el-select>
+          </el-form-item>
           <el-form-item label="日期">
             <el-date-picker
               v-model="dateRange"
@@ -110,6 +125,14 @@
       >
         <el-table-column prop="barcode" label="条形码" width="150" />
         <el-table-column prop="name" label="商品名称" min-width="150" />
+        <el-table-column 
+          label="公司" 
+          min-width="120"
+        >
+          <template #default="{ row }">
+            {{ row.company?.name || row.company_name || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="type" label="类型" width="100">
           <template #default="{ row }">
             <el-tag 
@@ -167,11 +190,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Search, Refresh, List } from '@element-plus/icons-vue';
 import { getTransactions, cancelTransaction, searchInventory, getInventoryList } from '../api/inventory';
 import type { Inventory } from '../types/inventory';
+import { getCompanies } from '../api/company';
+import type { Company } from '../types/company';
+import { CompanyType } from '../types/company';
 
 const loading = ref(false);
 const transactions = ref([]);
@@ -184,6 +210,7 @@ const searchQuery = ref('');
 const filters = ref({
   barcode: '',
   type: '',
+  company_id: undefined as number | undefined,
   startDate: '',
   endDate: ''
 });
@@ -248,6 +275,24 @@ const formatDate = (dateStr: string) => {
   });
 };
 
+// 添加公司列表
+const companies = ref<Company[]>([]);
+
+// 加载公司列表
+const loadCompanies = async () => {
+  try {
+    const [suppliers, customers] = await Promise.all([
+      getCompanies(CompanyType.SUPPLIER),
+      getCompanies(CompanyType.CUSTOMER)
+    ]);
+    // 合并供应商和客户列表
+    companies.value = [...suppliers, ...customers];
+  } catch (error) {
+    console.error('加载公司列表失败:', error);
+    ElMessage.error('加载公司列表失败');
+  }
+};
+
 // 加载交易记录
 const loadTransactions = async () => {
   loading.value = true;
@@ -257,6 +302,10 @@ const loadTransactions = async () => {
       limit: pageSize.value
     };
 
+    // 添加公司筛选条件
+    if (filters.value.company_id) {
+      params.company_id = filters.value.company_id;
+    }
     // 只添加有值的参数
     if (filters.value.barcode) {
       params.barcode = filters.value.barcode;
@@ -301,6 +350,7 @@ const resetFilters = () => {
   filters.value = {
     barcode: '',
     type: '',
+    company_id: undefined,
     startDate: '',
     endDate: ''
   };
@@ -328,7 +378,7 @@ const productList = ref<Inventory[]>([]);
 const showProductList = async () => {
   try {
     const response = await getInventoryList();
-    productList.value = response;
+    productList.value = response.data;
     productListVisible.value = true;
   } catch (error) {
     console.error('加载商品列表失败:', error);
@@ -349,7 +399,7 @@ const searchProduct = async (query: string) => {
   if (!query) return [];
   try {
     const response = await searchInventory(query);
-    return response.map((item: Inventory) => ({
+    return response.data.map((item: Inventory) => ({
       value: item.barcode,
       label: `${item.name} (${item.barcode})`,
       ...item
@@ -392,7 +442,10 @@ const handleCancel = async (row: any) => {
 };
 
 // 初始化
-loadTransactions();
+onMounted(() => {
+  loadCompanies();
+  loadTransactions();
+});
 </script>
 
 <style lang="scss" scoped>
@@ -429,6 +482,10 @@ loadTransactions();
 
 .search-input {
   width: 300px;
+}
+
+.company-select {
+  width: 200px;
 }
 
 // 其他样式已在 common.scss 中定义

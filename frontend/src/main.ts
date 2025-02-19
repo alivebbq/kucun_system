@@ -29,7 +29,8 @@ import {
     Minus,
     Tickets,
     DataLine,
-    TrendCharts
+    TrendCharts,
+    Money
 } from '@element-plus/icons-vue'
 import { createPinia } from 'pinia'
 
@@ -63,6 +64,7 @@ app.component('Minus', Minus)
 app.component('Tickets', Tickets)
 app.component('DataLine', DataLine)
 app.component('TrendCharts', TrendCharts)
+app.component('Money', Money)
 
 app.use(ElementPlus, {
     locale: zhCn,

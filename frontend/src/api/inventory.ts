@@ -20,6 +20,12 @@ export interface Transaction {
     price: number;
     total: number;
     timestamp: string;
+    company: {
+        id: number;
+        name: string;
+    };
+    company_name?: string;
+    notes?: string;
 }
 
 // 库存预警商品
@@ -76,12 +82,24 @@ export const updateInventory = async (barcode: string, data: Partial<Inventory>)
 };
 
 // 商品入库
-export const stockIn = (data: { barcode: string; quantity: number; price: number }) => {
+export const stockIn = (data: {
+    barcode: string;
+    quantity: number;
+    price: number;
+    company_id: number;
+    notes?: string;
+}) => {
     return api.post<Inventory>('/api/v1/inventory/stock-in', data);
 };
 
 // 商品出库
-export const stockOut = (data: { barcode: string; quantity: number; price: number }) => {
+export const stockOut = (data: {
+    barcode: string;
+    quantity: number;
+    price: number;
+    company_id: number;
+    notes?: string;
+}) => {
     return api.post<Inventory>('/api/v1/inventory/stock-out', data);
 };
 
@@ -99,7 +117,6 @@ export const getTransactions = (params?: {
     skip?: number;
     limit?: number;
 }) => {
-    // 过滤掉空字符串参数
     const filteredParams = Object.fromEntries(
         Object.entries(params || {}).filter(([_, v]) => v != null && v !== '')
     );
@@ -191,10 +208,21 @@ export const toggleInventoryStatus = async (barcode: string) => {
 
 // 搜索商品
 export const searchInventory = (searchText: string) => {
-    return api.get<Inventory>(`/api/v1/inventory/search/${searchText}`);
+    return api.get<Inventory[]>(`/api/v1/inventory/search/${searchText}`);
 };
 
 // 撤销交易记录
 export const cancelTransaction = (transactionId: number) => {
     return api.delete<Inventory>(`/api/v1/transactions/${transactionId}`);
-}; 
+};
+
+export interface StockInRecord {
+    id: number;
+    barcode: string;
+    quantity: number;
+    price: number;
+    company: {
+        id: number;
+        name: string;
+    };
+} 
