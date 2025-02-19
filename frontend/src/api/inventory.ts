@@ -1,4 +1,5 @@
 import api from './config';
+import type { Inventory } from '@/types/inventory';
 
 export interface Inventory {
     id: number;
@@ -225,4 +226,9 @@ export interface StockInRecord {
         id: number;
         name: string;
     };
+}
+
+// 获取商品详情
+export const getInventory = (id: number) => {
+    return api.get<Inventory>(`/api/v1/inventory/${id}`);
 } 

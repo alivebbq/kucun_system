@@ -282,11 +282,11 @@ const companies = ref<Company[]>([]);
 const loadCompanies = async () => {
   try {
     const [suppliers, customers] = await Promise.all([
-      getCompanies(CompanyType.SUPPLIER),
-      getCompanies(CompanyType.CUSTOMER)
+      getCompanies({ type: CompanyType.SUPPLIER }),
+      getCompanies({ type: CompanyType.CUSTOMER })
     ]);
     // 合并供应商和客户列表
-    companies.value = [...suppliers, ...customers];
+    companies.value = [...suppliers.items, ...customers.items];
   } catch (error) {
     console.error('加载公司列表失败:', error);
     ElMessage.error('加载公司列表失败');

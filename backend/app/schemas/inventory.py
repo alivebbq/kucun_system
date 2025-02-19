@@ -1,7 +1,8 @@
-from pydantic import BaseModel, constr
+from pydantic import BaseModel, constr, validator
 from decimal import Decimal
 from typing import Optional, List
 from datetime import datetime
+from enum import Enum
 
 # 商品基础模式
 class InventoryBase(BaseModel):
@@ -133,4 +134,88 @@ class SalesPoint(BaseModel):
 
 class ProductAnalysis(BaseModel):
     price_trends: List[PricePoint]     # 价格趋势
-    sales_analysis: List[SalesPoint]    # 销售和利润分析 
+    sales_analysis: List[SalesPoint]    # 销售和利润分析
+
+class OrderStatus(str, Enum):
+    DRAFT = "draft"
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
+
+# 出入库单明细基础模型
+class StockOrderItemBase(BaseModel):
+    inventory_id: int
+    barcode: str
+    quantity: int
+    price: Decimal
+    notes: Optional[str] = None
+
+# 创建出入库单明细请求
+class StockOrderItemCreate(StockOrderItemBase):
+    pass
+
+# 出入库单明细响应
+class StockOrderItem(StockOrderItemBase):
+    id: int
+    order_id: int
+    total: Decimal
+
+    class Config:
+        from_attributes = True
+
+# 出入库单基础模型
+class StockOrderBase(BaseModel):
+    type: str  # in/out
+    company_id: int
+    notes: Optional[str] = None
+
+# 创建出入库单请求
+class StockOrderCreate(StockOrderBase):
+    items: List[StockOrderItemCreate]
+
+# 更新出入库单请求
+class StockOrderUpdate(BaseModel):
+    notes: Optional[str] = None
+    status: Optional[OrderStatus] = None
+
+# 出入库单响应
+class StockOrder(BaseModel):
+    id: int
+    order_no: str
+    type: str
+    company_id: int
+    company_name: Optional[str] = None
+    operator_id: int
+    operator_name: Optional[str] = None
+    status: str
+    notes: Optional[str] = None
+    total_amount: float
+    created_at: datetime
+    items: List[StockOrderItem] = []
+
+    class Config:
+        from_attributes = True
+
+    @validator('company_name', pre=True, always=True)
+    def set_company_name(cls, v, values):
+        """从关联的 company 对象中获取名称"""
+        if hasattr(values.get('company'), 'name'):
+            return values['company'].name
+        return v
+
+    @validator('operator_name', pre=True, always=True)
+    def set_operator_name(cls, v, values):
+        """从关联的 operator 对象中获取名称"""
+        if hasattr(values.get('operator'), 'name'):
+            return values['operator'].name
+        return v
+
+# 出入库单列表响应
+class StockOrderList(BaseModel):
+    items: List[StockOrder]
+    total: int
+
+# 出入库单确认响应
+class StockOrderConfirmation(BaseModel):
+    order_id: int
+    status: OrderStatus
+    message: str 

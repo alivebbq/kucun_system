@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from contextlib import contextmanager
 import time
 
-from app.models.inventory import Inventory, Transaction
+from app.models.inventory import Inventory, Transaction, StockOrder, StockOrderItem
 from app.models.user import User
 from app.models.log import OperationLog
 from app.models.company import Company
@@ -16,8 +16,11 @@ from app.schemas.inventory import (
     InventoryCreate, 
     InventoryUpdate, 
     StockIn, 
-    StockOut
+    StockOut,
+    StockOrderCreate,
+    StockOrderUpdate
 )
+from app.models.inventory import OrderStatus
 
 class InventoryService:
     @staticmethod

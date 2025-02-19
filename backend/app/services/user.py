@@ -3,8 +3,8 @@ from fastapi import HTTPException
 from passlib.context import CryptContext
 from datetime import datetime
 from typing import List, Optional
-from app.models.user import User, Store
-from app.schemas.user import UserCreate, UserUpdate, StoreCreate
+from app.models.user import User
+from app.schemas.user import UserCreate, UserUpdate
 
 # 将 pwd_context 移到类外面作为模块级变量
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

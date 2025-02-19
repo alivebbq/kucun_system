@@ -514,8 +514,8 @@ const loadRecentRecords = async () => {
 const loadCompanies = async () => {
   try {
     console.log('Loading customers...');
-    const response = await getCompanies(CompanyType.CUSTOMER);
-    companies.value = response;
+    const response = await getCompanies({ type: CompanyType.CUSTOMER });
+    companies.value = response.items;
     console.log('Customers loaded:', companies.value);
   } catch (error: any) {
     console.error('Failed to load customers:', error);

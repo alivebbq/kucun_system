@@ -371,8 +371,8 @@ const handlePriceInput = (value: string) => {
 const loadCompanies = async () => {
   try {
     console.log('Loading suppliers...');
-    const response = await getCompanies(CompanyType.SUPPLIER);
-    companies.value = response;
+    const response = await getCompanies({ type: CompanyType.SUPPLIER });
+    companies.value = response.items;
     console.log('Suppliers loaded:', companies.value);
   } catch (error: any) {
     console.error('Failed to load suppliers:', error);

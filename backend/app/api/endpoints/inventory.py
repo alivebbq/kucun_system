@@ -5,12 +5,15 @@ from datetime import datetime, timedelta
 
 from app.db.session import get_db
 from app.services.inventory import InventoryService
-from app.core.auth import get_current_active_user
+from app.services.stock_order import StockOrderService
+from app.core.auth import get_current_active_user, get_current_user
 from app.models.user import User
 from app.schemas.inventory import (
     Inventory, InventoryCreate, InventoryUpdate,
     Transaction, StockIn, StockOut, InventoryStats,
-    TransactionResponse, PerformanceStats, ProductAnalysis
+    TransactionResponse, PerformanceStats, ProductAnalysis,
+    StockOrderCreate, StockOrder, StockOrderList,
+    StockOrderUpdate, StockOrderConfirmation
 )
 
 router = APIRouter(prefix="/api/v1")  # 添加前缀
@@ -295,3 +298,99 @@ def get_stock_out_records(
     records = InventoryService.get_stock_out_records(db, skip=skip, limit=limit)
     # 确保返回的数据包含公司信息
     return records 
+
+# 获取出入库单列表
+@router.get("/stock-orders", response_model=StockOrderList)
+def get_stock_orders(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    page: int = Query(1, gt=0),
+    limit: int = Query(20, gt=0),
+    search: Optional[str] = Query(None),
+    type: Optional[str] = Query(None),
+    status: Optional[str] = Query(None)
+):
+    """获取出入库单列表"""
+    # 计算skip
+    skip = (page - 1) * limit
+    
+    orders = StockOrderService.get_orders(
+        db=db,
+        store_id=current_user.store_id,
+        skip=skip,
+        limit=limit,
+        search=search,
+        type=type,
+        status=status
+    )
+    return orders
+
+# 获取出入库单详情
+@router.get("/stock-orders/{order_id}", response_model=StockOrder)
+def get_stock_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """获取出入库单详情"""
+    order = StockOrderService.get_order(
+        db=db,
+        order_id=order_id,
+        store_id=current_user.store_id
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    return order
+
+# 创建出入库单
+@router.post("/stock-orders", response_model=StockOrder)
+def create_stock_order(
+    order: StockOrderCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """创建出入库单"""
+    return StockOrderService.create_order(
+        db=db,
+        order=order,
+        store_id=current_user.store_id,
+        operator_id=current_user.id
+    )
+
+# 确认出入库单
+@router.post("/stock-orders/{order_id}/confirm", response_model=StockOrderConfirmation)
+def confirm_stock_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """确认出入库单"""
+    order = StockOrderService.confirm_order(
+        db=db,
+        order_id=order_id,
+        store_id=current_user.store_id
+    )
+    return {
+        "order_id": order.id,
+        "status": order.status,
+        "message": "订单已确认"
+    }
+
+# 取消出入库单
+@router.post("/stock-orders/{order_id}/cancel", response_model=StockOrderConfirmation)
+def cancel_stock_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """取消出入库单"""
+    order = StockOrderService.cancel_order(
+        db=db,
+        order_id=order_id,
+        store_id=current_user.store_id
+    )
+    return {
+        "order_id": order.id,
+        "status": order.status,
+        "message": "订单已取消"
+    } 

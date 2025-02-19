@@ -122,6 +122,21 @@ const routes = [
                     requiresAuth: true,
                     permission: 'finance'
                 }
+            },
+            {
+                path: 'stock-orders',
+                component: () => import('../views/stock/StockOrderList.vue'),
+                meta: { requiresAuth: true, title: '出入库单据' }
+            },
+            {
+                path: 'stock-orders/create',
+                component: () => import('../views/stock/StockOrderForm.vue'),
+                meta: { requiresAuth: true, title: '新建出入库单' }
+            },
+            {
+                path: 'stock-orders/:id',
+                component: () => import('../views/stock/StockOrderDetail.vue'),
+                meta: { requiresAuth: true, title: '出入库单详情' }
             }
         ]
     },

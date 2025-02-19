@@ -6,22 +6,6 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 
-class Store(Base):
-    __tablename__ = "stores"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    address = Column(String(255))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # 关联
-    users = relationship("User", back_populates="store")
-    inventory = relationship("Inventory", back_populates="store")
-    transactions = relationship("Transaction", back_populates="store")
-    operation_logs = relationship("OperationLog", back_populates="store")
-    companies = relationship("Company", back_populates="store")
-    payments = relationship("Payment", back_populates="store")
-
 class User(Base):
     __tablename__ = "users"
     
@@ -31,6 +15,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     is_owner = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
+    is_superuser = Column(Boolean, default=False)
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
     permissions = Column(String(255), default="")  # 权限字段，用逗号分隔
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -41,6 +26,7 @@ class User(Base):
     transactions = relationship("Transaction", back_populates="operator")
     operation_logs = relationship("OperationLog", back_populates="operator")
     payments = relationship("Payment", back_populates="operator")
+    stock_orders = relationship("StockOrder", back_populates="operator")
 
     @property
     def permission_list(self):

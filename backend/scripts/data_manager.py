@@ -4,7 +4,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
 from app.db.session import engine, Base, SessionLocal
-from app.models.user import Store, User
+from app.models.user import User
+from app.models.store import Store
 from app.models.inventory import Inventory, Transaction
 from app.models.log import OperationLog
 from app.services.user import pwd_context
@@ -222,42 +223,48 @@ def initialize_demo_data(db: Session = None):
                 "type": CompanyType.CUSTOMER,
                 "contact": "张经理",
                 "phone": "13800138000",
-                "address": "市中心路123号"
+                "address": "市中心路123号",
+                "is_active": True
             },
             {
                 "name": "顺丰物流",
                 "type": CompanyType.SUPPLIER,
                 "contact": "李经理",
                 "phone": "13900139000",
-                "address": "开发区456号"
+                "address": "开发区456号",
+                "is_active": True
             },
             {
                 "name": "双星贸易",
                 "type": CompanyType.SUPPLIER,
                 "contact": "王总",
                 "phone": "13700137000",
-                "address": "商贸城789号"
+                "address": "商贸城789号",
+                "is_active": True
             },
             {
                 "name": "友谊超市",
                 "type": CompanyType.CUSTOMER,
                 "contact": "赵店长",
                 "phone": "13800138000",
-                "address": "建设路54号"
+                "address": "建设路54号",
+                "is_active": True
             },
             {
                 "name": "德邦物流",
                 "type": CompanyType.SUPPLIER,
                 "contact": "刘主任",
                 "phone": "13900139000",
-                "address": "胜利路40号"
+                "address": "胜利路40号",
+                "is_active": True
             },
             {
                 "name": "红星幼儿园",
                 "type": CompanyType.CUSTOMER,
                 "contact": "田园长",
                 "phone": "13700137000",
-                "address": "幸福街12号"
+                "address": "幸福街12号",
+                "is_active": True
             }
             
         ]

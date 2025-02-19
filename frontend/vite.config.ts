@@ -1,30 +1,21 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import path from 'path'
 
-// https://vite.dev/config/
+// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [vue()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, 'src')
+    }
+  },
   server: {
+    port: 5173,
     proxy: {
-      '^/api/.*': {
+      '/api': {
         target: 'http://localhost:8000',
-        changeOrigin: true,
-        secure: false,
-        ws: true,
-        configure: (proxy, options) => {
-          proxy.on('error', (err, req, res) => {
-            console.log('proxy error', err);
-          });
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            console.log('Sending Request to:', req.method, proxyReq.path);
-          });
-          proxy.on('proxyRes', (proxyRes, req, res) => {
-            console.log('Received Response from:', req.method, req.url, proxyRes.statusCode);
-            // 添加 CORS 头
-            res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
-            res.setHeader('Access-Control-Allow-Credentials', 'true');
-          });
-        }
+        changeOrigin: true
       }
     }
   }

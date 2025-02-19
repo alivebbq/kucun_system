@@ -15,19 +15,20 @@ class CompanyService:
     @staticmethod
     def get_companies(db: Session, store_id: int, type: Optional[str] = None):
         """获取公司列表，支持按类型过滤"""
-        query = db.query(Company).filter(Company.store_id == store_id)
-        
-        if type:
-            query = query.filter(Company.type == type)
-        
         try:
-            return query.all()
+            query = db.query(Company).filter(Company.store_id == store_id)
+            
+            if type:
+                query = query.filter(Company.type == type)
+            
+            companies = query.all()
+            print(f"Found {len(companies)} companies for store_id: {store_id}")
+            return companies
         except Exception as e:
             print(f"Error getting companies: {str(e)}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"获取公司列表失败: {str(e)}"
-            )
+            print(f"Store ID: {store_id}")
+            print(f"Type Filter: {type}")
+            raise
     
     @staticmethod
     def create_company(db: Session, company: CompanyCreate, store_id: int):

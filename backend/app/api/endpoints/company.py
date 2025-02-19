@@ -5,13 +5,13 @@ from app.db.session import get_db
 from app.core.auth import get_current_active_user
 from app.models.user import User
 from app.schemas.company import (
-    Company, CompanyCreate, Payment, PaymentCreate, CompanyBalance, CompanyTransaction, CompanyTransactionResponse, CompanyCreateResponse, CompanyBalanceResponse, CompanyUpdate
+    Company, CompanyCreate, Payment, PaymentCreate, CompanyBalance, CompanyTransaction, CompanyTransactionResponse, CompanyCreateResponse, CompanyBalanceResponse, CompanyUpdate, CompanyListResponse
 )
 from app.services.company import CompanyService
 
 router = APIRouter(prefix="/api/v1")
 
-@router.get("/companies/", response_model=List[Company])
+@router.get("/companies/", response_model=CompanyListResponse)
 def list_companies(
     db: Session = Depends(get_db),
     type: Optional[str] = None,
@@ -25,11 +25,12 @@ def list_companies(
     
     try:
         companies = CompanyService.get_companies(db, current_user.store_id, type)
-        print(f"Found {len(companies)} companies")
-        return companies
+        return {
+            "items": companies,
+            "total": len(companies)
+        }
     except Exception as e:
-        print(f"Error: {str(e)}")
-        raise
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/companies/balance", response_model=CompanyBalanceResponse)
 def get_company_balances(

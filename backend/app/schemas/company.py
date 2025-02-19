@@ -91,4 +91,11 @@ class CompanyUpdate(BaseModel):
     name: Optional[str] = None
     contact: Optional[str] = None
     phone: Optional[str] = None
-    address: Optional[str] = None 
+    address: Optional[str] = None
+
+class CompanyListResponse(BaseModel):
+    items: List[Company]
+    total: int
+
+    class Config:
+        from_attributes = True 

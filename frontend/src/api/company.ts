@@ -3,10 +3,20 @@ import type { Company, CompanyBalance, Payment, CompanyTransaction } from '../ty
 import { CompanyType } from '../types/company';
 
 // 获取公司列表
-export const getCompanies = (type?: CompanyType) => {
-    return api.get<Company[]>('/api/v1/companies/', {
-        params: { type }
-    });
+export const getCompanies = async (params?: { type?: CompanyType }) => {
+    try {
+        const response = await api.get<{ items: Company[]; total: number }>('/api/v1/companies', {
+            params,
+            // 添加错误重试
+            retry: 3,
+            retryDelay: 1000
+        });
+        console.log('Companies response:', response);
+        return response;
+    } catch (error) {
+        console.error('Error fetching companies:', error);
+        throw error;
+    }
 };
 
 // 创建公司
