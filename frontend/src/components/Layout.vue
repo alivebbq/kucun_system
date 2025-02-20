@@ -44,6 +44,10 @@ const userStore = useUserStore();
 const filteredMenuItems = computed(() => {
   const mainRoute = router.options.routes.find(r => r.path === '/');
   return mainRoute?.children?.filter(item => {
+    // 隐藏的路由不显示
+    if (item.meta?.hidden) {
+      return false;
+    }
     // 需要店主权限的页面
     if (item.meta?.requiresOwner) {
       return userStore.isOwner;

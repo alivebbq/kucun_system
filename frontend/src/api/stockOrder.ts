@@ -28,7 +28,7 @@ export const getStockOrders = (params: {
 
 // 获取出入库单详情
 export const getStockOrder = (id: number) => {
-    return api.get<StockOrder>(`/api/v1/stock-orders/${id}`)
+    return api.get<StockOrder>(`/api/v1/stock-orders/${id}`);
 }
 
 // 创建出入库单
@@ -44,4 +44,9 @@ export const confirmStockOrder = (id: number) => {
 // 取消出入库单
 export const cancelStockOrder = (id: number) => {
     return api.post<StockOrder>(`/api/v1/stock-orders/${id}/cancel`)
+}
+
+// 更新出入库单
+export const updateStockOrder = (id: number, data: any) => {
+    return api.put<StockOrder>(`/api/v1/stock-orders/${id}`, data)
 } 

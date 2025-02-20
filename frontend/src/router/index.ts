@@ -25,14 +25,34 @@ const routes = [
                 }
             },
             {
+                path: 'stock-orders',
+                component: () => import('../views/stock/StockOrderList.vue'),
+                meta: {
+                    requiresAuth: true,
+                    title: '出入库管理',
+                    icon: 'Tickets'
+                }
+            },
+            {
                 path: 'inventory',
                 name: 'Inventory',
                 component: () => import('../views/Inventory.vue'),
                 meta: {
-                    title: '库存管理',
+                    title: '商品管理',
                     icon: 'List',
                     requiresAuth: true,
                     permission: 'inventory'
+                }
+            },
+            {
+                path: 'finance',
+                name: 'Finance',
+                component: () => import('../views/Finance.vue'),
+                meta: {
+                    title: '应收应付',
+                    icon: 'Money',
+                    requiresAuth: true,
+                    permission: 'finance'
                 }
             },
             {
@@ -43,7 +63,8 @@ const routes = [
                     title: '商品入库',
                     icon: 'Plus',
                     requiresAuth: true,
-                    permission: 'stock_in'
+                    permission: 'stock_in',
+                    hidden: true
                 }
             },
             {
@@ -54,7 +75,8 @@ const routes = [
                     title: '商品出库',
                     icon: 'Minus',
                     requiresAuth: true,
-                    permission: 'stock_out'
+                    permission: 'stock_out',
+                    hidden: true
                 }
             },
             {
@@ -109,34 +131,27 @@ const routes = [
                     title: '操作日志',
                     icon: 'Document',
                     requiresAuth: true,
-                    requiresOwner: true
+                    requiresOwner: true,
+                    hidden: true
                 }
-            },
-            {
-                path: 'finance',
-                name: 'Finance',
-                component: () => import('../views/Finance.vue'),
-                meta: {
-                    title: '应收应付',
-                    icon: 'Money',
-                    requiresAuth: true,
-                    permission: 'finance'
-                }
-            },
-            {
-                path: 'stock-orders',
-                component: () => import('../views/stock/StockOrderList.vue'),
-                meta: { requiresAuth: true, title: '出入库单据' }
             },
             {
                 path: 'stock-orders/create',
                 component: () => import('../views/stock/StockOrderForm.vue'),
-                meta: { requiresAuth: true, title: '新建出入库单' }
+                meta: {
+                    requiresAuth: true,
+                    title: '新建出入库单',
+                    hidden: true
+                }
             },
             {
                 path: 'stock-orders/:id',
                 component: () => import('../views/stock/StockOrderDetail.vue'),
-                meta: { requiresAuth: true, title: '出入库单详情' }
+                meta: {
+                    requiresAuth: true,
+                    title: '出入库单详情',
+                    hidden: true
+                }
             }
         ]
     },

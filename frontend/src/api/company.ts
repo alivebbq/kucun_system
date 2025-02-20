@@ -54,18 +54,8 @@ export const getPayments = (companyId?: number) => {
 };
 
 // 获取公司交易记录
-export const getCompanyTransactions = (
-    companyId: number,
-    params?: {
-        type?: string;
-        skip?: number;
-        limit?: number;
-    }
-) => {
-    return api.get<{
-        items: CompanyTransaction[];
-        total: number;
-    }>(`/api/v1/companies/${companyId}/transactions`, { params });
+export const getCompanyTransactions = (companyId: number) => {
+    return api.get<CompanyTransaction[]>(`/api/v1/companies/${companyId}/transactions`);
 };
 
 // 添加更新公司信息的接口

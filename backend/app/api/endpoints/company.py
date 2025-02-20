@@ -4,8 +4,13 @@ from typing import List, Optional
 from app.db.session import get_db
 from app.core.auth import get_current_active_user
 from app.models.user import User
+from app.models.inventory import StockOrder
+from app.models.company import Payment
 from app.schemas.company import (
-    Company, CompanyCreate, Payment, PaymentCreate, CompanyBalance, CompanyTransaction, CompanyTransactionResponse, CompanyCreateResponse, CompanyBalanceResponse, CompanyUpdate, CompanyListResponse
+    Company, CompanyCreate, Payment as PaymentSchema,
+    PaymentCreate, CompanyBalance, CompanyTransaction,
+    CompanyTransactionResponse, CompanyCreateResponse,
+    CompanyBalanceResponse, CompanyUpdate, CompanyListResponse
 )
 from app.services.company import CompanyService
 
@@ -37,6 +42,7 @@ def get_company_balances(
     skip: int = 0,
     limit: int = 10,
     type: Optional[str] = None,
+    search: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
@@ -46,7 +52,8 @@ def get_company_balances(
         current_user.store_id,
         skip=skip,
         limit=limit,
-        type=type
+        type=type,
+        search=search
     )
 
 @router.get("/companies/total-balance", response_model=dict)
@@ -86,26 +93,86 @@ def update_company(
         current_user.store_id
     )
 
-@router.get("/companies/{company_id}/transactions", response_model=CompanyTransactionResponse)
+@router.get("/companies/{company_id}/transactions", response_model=List[CompanyTransactionResponse])
 def get_company_transactions(
     company_id: int,
-    skip: int = 0,
-    limit: int = 10,
-    type: str = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """获取公司的所有交易记录"""
-    return CompanyService.get_company_transactions(
-        db, 
-        company_id, 
-        current_user.store_id,
-        type=type,
-        skip=skip,
-        limit=limit
+    """获取公司的交易记录"""
+    transactions = []
+    
+    # 获取入库单记录
+    stock_in_orders = (
+        db.query(StockOrder)
+        .filter(
+            StockOrder.company_id == company_id,
+            StockOrder.type == 'in',
+            StockOrder.status == 'confirmed',
+            StockOrder.store_id == current_user.store_id
+        )
+        .all()
     )
+    for order in stock_in_orders:
+        transactions.append({
+            "id": order.id,
+            "type": "stock_in",
+            "order_id": order.id,
+            "order_no": order.order_no,
+            "amount": float(order.total_amount),
+            "timestamp": order.created_at,
+            "notes": order.notes,
+            "operator_name": order.operator.name
+        })
+    
+    # 获取出库单记录
+    stock_out_orders = (
+        db.query(StockOrder)
+        .filter(
+            StockOrder.company_id == company_id,
+            StockOrder.type == 'out',
+            StockOrder.status == 'confirmed',
+            StockOrder.store_id == current_user.store_id
+        )
+        .all()
+    )
+    for order in stock_out_orders:
+        transactions.append({
+            "id": order.id,
+            "type": "stock_out",
+            "order_id": order.id,
+            "order_no": order.order_no,
+            "amount": float(order.total_amount),
+            "timestamp": order.created_at,
+            "notes": order.notes,
+            "operator_name": order.operator.name
+        })
+    
+    # 获取收付款记录
+    payments = (
+        db.query(Payment)
+        .filter(
+            Payment.company_id == company_id,
+            Payment.store_id == current_user.store_id
+        )
+        .all()
+    )
+    for payment in payments:
+        transactions.append({
+            "id": payment.id,
+            "type": payment.type,
+            "amount": float(payment.amount),
+            "timestamp": payment.created_at,
+            "notes": payment.notes,
+            "operator_name": payment.operator.name
+        })
+    
+    # 按时间倒序排序
+    transactions.sort(key=lambda x: x["timestamp"], reverse=True)
+    
+    return transactions
 
-@router.post("/payments/", response_model=Payment)
+@router.post("/payments/", response_model=PaymentSchema)
 def create_payment(
     payment: PaymentCreate,
     db: Session = Depends(get_db),
@@ -119,7 +186,7 @@ def create_payment(
         current_user.id
     )
 
-@router.get("/payments/", response_model=List[Payment])
+@router.get("/payments/", response_model=List[PaymentSchema])
 def list_payments(
     company_id: int = None,
     db: Session = Depends(get_db),

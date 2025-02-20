@@ -4,6 +4,7 @@ export type OrderStatus = 'draft' | 'confirmed' | 'cancelled'
 // 出入库单明细
 export interface StockOrderItem {
     id: number
+    order_id: number
     inventory_id: number
     barcode: string
     quantity: number
@@ -16,17 +17,15 @@ export interface StockOrderItem {
 export interface StockOrder {
     id: number
     order_no: string
-    type: 'in' | 'out'
+    type: string
     company_id: number
-    company_name: string
-    total_amount: number
+    company_name?: string
     operator_id: number
-    operator_name: string
-    store_id: number
-    status: OrderStatus
+    operator_name?: string
+    status: string
     notes?: string
+    total_amount: number
     created_at: string
-    updated_at?: string
     items: StockOrderItem[]
 }
 

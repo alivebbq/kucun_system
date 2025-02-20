@@ -64,11 +64,17 @@ class CompanyTransaction(BaseModel):
         from_attributes = True
 
 class CompanyTransactionResponse(BaseModel):
-    items: List[CompanyTransaction]
-    total: int
+    id: int
+    type: str
+    order_id: Optional[int] = None
+    order_no: Optional[str] = None
+    amount: float
+    timestamp: datetime
+    notes: Optional[str] = None
+    operator_name: str
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class CompanyCreateResponse(CompanyBase):
     id: int

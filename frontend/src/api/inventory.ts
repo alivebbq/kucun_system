@@ -59,7 +59,12 @@ export const getInventoryList = (params?: { skip?: number; limit?: number }) => 
 
 // 根据条形码获取商品
 export const getInventoryByBarcode = (barcode: string) => {
-    return api.get<Inventory>(`/api/v1/inventory/${barcode}`);
+    return api.get<Inventory>(`/api/v1/inventory/barcode/${barcode}`);
+};
+
+// 根据ID获取商品
+export const getInventory = (id: number) => {
+    return api.get<Inventory>(`/api/v1/inventory/id/${id}`);
 };
 
 // 创建商品
@@ -226,9 +231,4 @@ export interface StockInRecord {
         id: number;
         name: string;
     };
-}
-
-// 获取商品详情
-export const getInventory = (id: number) => {
-    return api.get<Inventory>(`/api/v1/inventory/${id}`);
 } 

@@ -33,6 +33,8 @@ export interface Payment {
 export interface CompanyTransaction {
     id: number;
     type: 'stock_in' | 'stock_out' | 'receive' | 'pay';
+    order_id?: number;
+    order_no?: string;
     amount: number;
     timestamp: string;
     notes?: string;

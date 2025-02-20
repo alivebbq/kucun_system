@@ -6,7 +6,7 @@ import enum
 
 # 新增订单状态枚举
 class OrderStatus(str, enum.Enum):
-    DRAFT = "draft"      # 草稿
+    DRAFT = "draft"      # 待处理
     CONFIRMED = "confirmed"  # 已确认
     CANCELLED = "cancelled"  # 已取消
 

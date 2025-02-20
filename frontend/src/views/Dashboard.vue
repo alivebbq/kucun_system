@@ -37,7 +37,7 @@
             <div class="card-header">
               <span>近7天热销产品</span>
               <el-tag type="success" v-if="stats.hot_products.length">
-                销售额 TOP {{ stats.hot_products.length }}
+                销售额 TOP 10
               </el-tag>
             </div>
           </template>
@@ -182,11 +182,14 @@ const tableMaxHeight = 'calc(100vh - 280px)';
 
 <style scoped>
 .dashboard {
-  padding: 12px;
-  height: 100%;
-  background-color: #f5f7fa;
-  max-width: 1600px;
-  margin: 0 auto;
+    padding: 20px;
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    background-color: #f5f7fa;
 }
 
 .top-row {

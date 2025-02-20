@@ -13,7 +13,7 @@ from app.schemas.inventory import (
     Transaction, StockIn, StockOut, InventoryStats,
     TransactionResponse, PerformanceStats, ProductAnalysis,
     StockOrderCreate, StockOrder, StockOrderList,
-    StockOrderUpdate, StockOrderConfirmation
+    StockOrderUpdate, StockOrderConfirmation, UpdateStockOrderRequest
 )
 
 router = APIRouter(prefix="/api/v1")  # 添加前缀
@@ -28,8 +28,8 @@ def list_inventory(
     """获取库存列表"""
     return InventoryService.get_inventory(db, current_user.store_id, skip=skip, limit=limit)
 
-@router.get("/inventory/{barcode}", response_model=Inventory)
-def get_inventory(
+@router.get("/inventory/barcode/{barcode}", response_model=Inventory)
+def get_inventory_by_barcode(
     barcode: str, 
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
@@ -308,7 +308,9 @@ def get_stock_orders(
     limit: int = Query(20, gt=0),
     search: Optional[str] = Query(None),
     type: Optional[str] = Query(None),
-    status: Optional[str] = Query(None)
+    status: Optional[str] = Query(None),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None)
 ):
     """获取出入库单列表"""
     # 计算skip
@@ -321,7 +323,9 @@ def get_stock_orders(
         limit=limit,
         search=search,
         type=type,
-        status=status
+        status=status,
+        start_date=start_date,
+        end_date=end_date
     )
     return orders
 
@@ -393,4 +397,55 @@ def cancel_stock_order(
         "order_id": order.id,
         "status": order.status,
         "message": "订单已取消"
-    } 
+    }
+
+# 更新出入库单
+@router.put("/stock-orders/{order_id}", response_model=StockOrder)
+def update_stock_order(
+    order_id: int,
+    data: UpdateStockOrderRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """更新出入库单"""
+    # 检查订单是否存在
+    order = StockOrderService.get_order(
+        db=db,
+        order_id=order_id,
+        store_id=current_user.store_id
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    
+    # 检查订单状态
+    if order.status != "draft":
+        raise HTTPException(status_code=400, detail="只能修改待处理状态的订单")
+    
+    # 更新订单
+    try:
+        updated_order = StockOrderService.update_order(
+            db=db, 
+            order_id=order_id,
+            data=data,
+            store_id=current_user.store_id,
+            operator_id=current_user.id
+        )
+        return updated_order
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/inventory/id/{inventory_id}", response_model=Inventory)
+def get_inventory_by_id(
+    inventory_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """根据ID获取商品信息"""
+    inventory = InventoryService.get_inventory_by_id(
+        db, 
+        inventory_id, 
+        current_user.store_id
+    )
+    if not inventory:
+        raise HTTPException(status_code=404, detail="商品不存在")
+    return inventory 

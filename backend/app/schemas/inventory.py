@@ -218,4 +218,26 @@ class StockOrderList(BaseModel):
 class StockOrderConfirmation(BaseModel):
     order_id: int
     status: OrderStatus
-    message: str 
+    message: str
+
+class UpdateStockOrderRequest(BaseModel):
+    company_id: int
+    notes: str | None = None
+    items: list[StockOrderItemCreate]
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "company_id": 1,
+                "notes": "更新备注",
+                "items": [
+                    {
+                        "inventory_id": 1,
+                        "barcode": "8900000001",
+                        "quantity": 10,
+                        "price": 9.9,
+                        "notes": "商品备注"
+                    }
+                ]
+            }
+        } 

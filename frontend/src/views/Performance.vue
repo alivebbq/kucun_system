@@ -233,16 +233,20 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  background-color: #f5f7fa;
+  min-height: 100%;
 }
 
 .date-picker {
   display: flex;
   justify-content: flex-end;
   padding: 10px;
+  background-color: #fff;
 }
 
 .summary {
   margin-bottom: 20px;
+  background-color: #fff;
 }
 
 .stat-item {
@@ -282,6 +286,7 @@ onMounted(() => {
 
 .rankings {
   margin-bottom: 20px;
+  background-color: #fff;
 }
 
 .card-header {

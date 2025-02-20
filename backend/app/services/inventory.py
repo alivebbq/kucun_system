@@ -838,3 +838,22 @@ class InventoryService:
                 record.company_name = record.company.name
         
         return records 
+
+    @staticmethod
+    def get_inventory_by_id(db: Session, inventory_id: int, store_id: int) -> Optional[Inventory]:
+        """根据ID获取商品"""
+        try:
+            inventory = db.query(Inventory).filter(
+                Inventory.id == inventory_id,
+                Inventory.store_id == store_id
+            ).first()
+            
+            if inventory:
+                print(f"Found inventory: {inventory.name} for ID: {inventory_id}")
+            else:
+                print(f"No inventory found for ID: {inventory_id}")
+            
+            return inventory
+        except Exception as e:
+            print(f"Error getting inventory by ID: {str(e)}")
+            raise 

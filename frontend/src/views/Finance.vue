@@ -24,7 +24,7 @@
             <div class="search-box">
               <el-input
                 v-model="customerSearch"
-                placeholder="搜索客户"
+                placeholder="搜索客户名称/联系人/电话/地址"
                 clearable
                 @input="handleCustomerSearch"
               >
@@ -272,26 +272,34 @@
     <!-- 交易记录对话框 -->
     <el-dialog
       v-model="historyDialogVisible"
-      :title="`${currentCompany?.company.name || ''} - 交易记录`"
-      width="80%"
+      :title="`${currentCompany?.company.name} 的交易记录`"
+      width="900px"
       class="custom-dialog"
     >
-      <!-- 添加工具栏 -->
       <div class="dialog-toolbar">
-        <el-select v-model="historyQuery.type" placeholder="全部类型" clearable @change="loadHistory">
-          <el-option
-            v-for="option in transactionTypeOptions"
-            :key="option.value"
-            :label="option.label"
-            :value="option.value"
-          />
+        <el-select v-model="historyQuery.type" placeholder="全部类型" clearable>
+          <template v-if="currentCompany?.company.type === CompanyType.CUSTOMER">
+            <el-option label="出库单" value="stock_out" />
+            <el-option label="收款" value="receive" />
+          </template>
+          <template v-else>
+            <el-option label="入库单" value="stock_in" />
+            <el-option label="付款" value="pay" />
+          </template>
         </el-select>
       </div>
-
-      <el-table :data="transactionHistory" v-loading="historyLoading">
-        <el-table-column prop="timestamp" label="时间" width="180">
+      
+      <el-table :data="filteredTransactionHistory" v-loading="historyLoading">
+        <el-table-column prop="order_no" label="单据编号" width="180">
           <template #default="{ row }">
-            {{ formatDate(row.timestamp) }}
+            <router-link 
+              v-if="row.order_no"
+              :to="`/stock-orders/${row.order_id}`"
+              class="link-type"
+            >
+              {{ row.order_no }}
+            </router-link>
+            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column prop="type" label="类型" width="100">
@@ -301,48 +309,32 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="商品信息" min-width="200" show-overflow-tooltip>
+        <el-table-column prop="amount" label="金额" width="150" align="right">
           <template #default="{ row }">
-            <template v-if="row.product_name">
-              {{ row.product_name }}
-              <el-text type="info" size="small">
-                ({{ row.quantity }} × ¥{{ formatNumber(row.price) }})
-              </el-text>
-            </template>
+            <span :class="getAmountClass(row)">
+              ¥{{ formatNumber(row.amount) }}
+            </span>
           </template>
         </el-table-column>
-        <el-table-column prop="amount" label="金额" width="120" align="right">
+        <el-table-column prop="timestamp" label="时间" width="180">
           <template #default="{ row }">
-            <el-tooltip
-              :content="getAmountTooltip(row)"
-              placement="top"
-              :disabled="!getAmountTooltip(row)"
-            >
-              <div class="amount-cell">
-                <span :class="getAmountClass(row)">
-                  ¥{{ formatNumber(Math.abs(row.amount)) }}
-                </span>
-                <span class="amount-info" v-if="getAmountTooltip(row)">
-                  ({{ getAmountTooltip(row) }})
-                </span>
-              </div>
-            </el-tooltip>
+            {{ formatDateTime(row.timestamp) }}
           </template>
         </el-table-column>
-        <el-table-column prop="notes" label="备注" min-width="200" show-overflow-tooltip />
         <el-table-column prop="operator_name" label="操作人" width="120" />
+        <el-table-column prop="notes" label="备注" min-width="200" show-overflow-tooltip />
       </el-table>
 
-      <!-- 添加分页 -->
+      <!-- 添加分页器 -->
       <div class="pagination-container">
         <el-pagination
           v-model:current-page="historyQuery.page"
           v-model:page-size="historyQuery.pageSize"
           :page-sizes="[10, 20, 50, 100]"
-          :total="historyTotal"
+          :total="transactionHistory.length"
           layout="total, sizes, prev, pager, next"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
+          @size-change="handleHistorySizeChange"
+          @current-change="handleHistoryPageChange"
         />
       </div>
     </el-dialog>
@@ -384,6 +376,8 @@
 import { ref, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { FormInstance } from 'element-plus';
+import { formatDateTime } from '@/utils/format'
+import { debounce } from 'lodash';
 import {
   getCompanyBalances,
   createCompany,
@@ -392,7 +386,7 @@ import {
   updateCompany,
   getCompanyTotalBalance
 } from '../api/company';
-import type { CompanyBalance, CompanyTransaction } from '../types/company';
+import type { CompanyBalance, CompanyTransaction, Company } from '../types/company';
 import { CompanyType } from '../types/company';
 import { Search, Plus } from '@element-plus/icons-vue';
 
@@ -453,38 +447,15 @@ const historyDialogVisible = ref(false);
 const historyLoading = ref(false);
 const transactionHistory = ref<CompanyTransaction[]>([]);
 
-// 添加查询参数
+// 修改查询参数，添加分页
 const historyQuery = ref({
+  type: '',
   page: 1,
-  pageSize: 10,
-  type: ''
+  pageSize: 10
 });
 
 // 添加总记录数
 const historyTotal = ref(0);
-
-// 根据公司类型获取交易类型选项
-const transactionTypeOptions = computed(() => {
-  if (!currentCompany.value) return [];
-  
-  // 如果是客户，只显示出库和收款
-  if (currentCompany.value.company.type === CompanyType.CUSTOMER) {
-    return [
-      { label: '出库', value: 'out' },
-      { label: '收款', value: 'receive' }
-    ];
-  }
-  
-  // 如果是供应商，只显示入库和付款
-  if (currentCompany.value.company.type === CompanyType.SUPPLIER) {
-    return [
-      { label: '入库', value: 'in' },
-      { label: '付款', value: 'pay' }
-    ];
-  }
-  
-  return [];
-});
 
 // 添加搜索状态
 const customerSearch = ref('');
@@ -548,7 +519,8 @@ const loadData = async () => {
     const customerResponse = await getCompanyBalances({
       type: CompanyType.CUSTOMER,
       skip: (customerQuery.value.page - 1) * customerQuery.value.pageSize,
-      limit: customerQuery.value.pageSize
+      limit: customerQuery.value.pageSize,
+      search: customerSearch.value || undefined  // 添加搜索参数
     });
     customerBalances.value = customerResponse.items;
     customerTotal.value = customerResponse.total;
@@ -557,7 +529,8 @@ const loadData = async () => {
     const supplierResponse = await getCompanyBalances({
       type: CompanyType.SUPPLIER,
       skip: (supplierQuery.value.page - 1) * supplierQuery.value.pageSize,
-      limit: supplierQuery.value.pageSize
+      limit: supplierQuery.value.pageSize,
+      search: supplierSearch.value || undefined  // 添加搜索参数
     });
     supplierBalances.value = supplierResponse.items;
     supplierTotal.value = supplierResponse.total;
@@ -675,7 +648,7 @@ const submitCompany = async () => {
     loadData(); // 直接重新加载数据，而不是手动添加到列表中
   } catch (error: any) {
     console.error('添加失败:', error);
-    if (error.response?.data?.detail === '公司名称已存在') {
+    if (error.response?.detail === '公司名称已存在') {
       ElMessage.error('公司名称已存在');
     } else {
       ElMessage.error('添加失败');
@@ -697,8 +670,8 @@ const formatDate = (date: string) => {
 // 获取交易类型文本
 const getTransactionTypeText = (row: CompanyTransaction) => {
   const typeMap = {
-    in: '入库',
-    out: '出库',
+    stock_in: '入库单',
+    stock_out: '出库单',
     receive: '收款',
     pay: '付款'
   };
@@ -708,10 +681,10 @@ const getTransactionTypeText = (row: CompanyTransaction) => {
 // 获取交易类型标签样式
 const getTransactionTagType = (row: CompanyTransaction) => {
   const typeMap = {
-    in: 'success',  // 入库用绿色
-    out: 'danger',  // 出库用红色
-    receive: 'success',  // 收款用绿色
-    pay: 'danger'  // 付款用红色
+    stock_in: 'success',
+    stock_out: 'warning',
+    receive: 'success',
+    pay: 'danger'
   } as const;
   return typeMap[row.type] || 'info';
 };
@@ -720,10 +693,10 @@ const getTransactionTagType = (row: CompanyTransaction) => {
 const getAmountClass = (row: CompanyTransaction) => {
   const amount = Number(row.amount);
   if (amount === 0) return '';
-  if (row.type === 'out' || row.type === 'pay') {
+  if (row.type === 'stock_out' || row.type === 'pay') {
     return amount > 0 ? 'negative' : 'positive';
   }
-  if (row.type === 'in' || row.type === 'receive') {
+  if (row.type === 'stock_in' || row.type === 'receive') {
     return amount > 0 ? 'positive' : 'negative';
   }
   return '';
@@ -743,22 +716,17 @@ const getAmountTooltip = (row: CompanyTransaction) => {
   return '';
 };
 
-// 修改加载历史记录函数
+// 加载交易记录
 const loadHistory = async () => {
   if (!currentCompany.value) return;
   
   historyLoading.value = true;
   try {
     const response = await getCompanyTransactions(
-      currentCompany.value.company.id,
-      {
-        type: historyQuery.value.type || undefined,
-        skip: (historyQuery.value.page - 1) * historyQuery.value.pageSize,
-        limit: historyQuery.value.pageSize
-      }
+      currentCompany.value.company.id
     );
-    transactionHistory.value = response.items;
-    historyTotal.value = response.total;
+    // 直接使用返回的数组，因为后端已经不再包装在 items 中
+    transactionHistory.value = response;
   } catch (error) {
     console.error('加载交易记录失败:', error);
     ElMessage.error('加载交易记录失败');
@@ -767,16 +735,29 @@ const loadHistory = async () => {
   }
 };
 
+// 添加计算属性进行前端分页
+const filteredTransactionHistory = computed(() => {
+  let result = [...transactionHistory.value];
+  
+  // 按类型筛选
+  if (historyQuery.value.type) {
+    result = result.filter(item => item.type === historyQuery.value.type);
+  }
+  
+  // 分页
+  const start = (historyQuery.value.page - 1) * historyQuery.value.pageSize;
+  const end = start + historyQuery.value.pageSize;
+  return result.slice(start, end);
+});
+
 // 处理分页变化
-const handleSizeChange = (val: number) => {
+const handleHistorySizeChange = (val: number) => {
   historyQuery.value.pageSize = val;
   historyQuery.value.page = 1;
-  loadHistory();
 };
 
-const handleCurrentChange = (val: number) => {
+const handleHistoryPageChange = (val: number) => {
   historyQuery.value.page = val;
-  loadHistory();
 };
 
 // 修改查看记录函数
@@ -785,9 +766,9 @@ const handleViewHistory = async (row: CompanyBalance) => {
   historyDialogVisible.value = true;
   // 重置查询条件
   historyQuery.value = {
+    type: '',
     page: 1,
-    pageSize: 10,
-    type: ''
+    pageSize: 10
   };
   await loadHistory();
 };
@@ -841,13 +822,24 @@ const submitEdit = async () => {
     loadData(); // 重新加载数据
   } catch (error: any) {
     console.error('修改失败:', error);
-    if (error.response?.data?.detail === '公司名称已存在') {
+    if (error.response?.detail === '公司名称已存在') {
       ElMessage.error('公司名称已存在');
     } else {
       ElMessage.error('修改失败');
     }
   }
 };
+
+// 修改搜索处理函数
+const handleCustomerSearch = debounce(async () => {
+  customerQuery.value.page = 1; // 重置页码
+  await loadData();
+}, 300);
+
+const handleSupplierSearch = debounce(async () => {
+  supplierQuery.value.page = 1; // 重置页码
+  await loadData();
+}, 300);
 
 onMounted(() => {
   loadData();

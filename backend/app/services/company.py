@@ -10,6 +10,7 @@ from sqlalchemy import desc, text
 from app.models.user import User
 from sqlalchemy import literal
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_
 
 class CompanyService:
     @staticmethod
@@ -100,23 +101,30 @@ class CompanyService:
     
     @staticmethod
     def get_company_balances(
-        db: Session, 
+        db: Session,
         store_id: int,
         skip: int = 0,
         limit: int = 10,
-        type: Optional[str] = None  # 添加类型筛选
+        type: Optional[str] = None,
+        search: Optional[str] = None  # 添加搜索参数
     ):
-        # 基础查询
+        """获取所有公司的应收应付情况"""
         query = db.query(Company).filter(Company.store_id == store_id)
         
-        # 应用类型筛选
         if type:
             query = query.filter(Company.type == type)
         
-        # 获取总记录数
-        total = query.count()
+        if search:  # 添加搜索条件
+            search = f"%{search}%"
+            query = query.filter(
+                or_(
+                    Company.name.ilike(search),
+                    Company.contact.ilike(search),
+                    Company.phone.ilike(search)
+                )
+            )
         
-        # 获取分页数据
+        total = query.count()
         companies = query.offset(skip).limit(limit).all()
         
         balances = []

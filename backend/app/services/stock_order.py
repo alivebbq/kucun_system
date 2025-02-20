@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional, List
 from fastapi import HTTPException
 from app.models.inventory import StockOrder, StockOrderItem, Transaction, Inventory
-from app.schemas.inventory import StockOrderCreate, StockOrderUpdate
+from app.schemas.inventory import StockOrderCreate, StockOrderUpdate, UpdateStockOrderRequest
 from app.core.utils import generate_order_no
 from app.models.company import Company
 
@@ -17,7 +17,9 @@ class StockOrderService:
         limit: int = 20,
         search: Optional[str] = None,
         type: Optional[str] = None,
-        status: Optional[str] = None
+        status: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
     ):
         """获取出入库单列表"""
         try:
@@ -41,6 +43,12 @@ class StockOrderService:
                 
             if status:
                 query = query.filter(StockOrder.status == status)
+            print(f"###s1tart_date: {start_date}")
+            if start_date:
+                query = query.filter(StockOrder.created_at >= start_date)
+                
+            if end_date:
+                query = query.filter(StockOrder.created_at <= end_date)
                 
             # 计算总数
             total = query.count()
@@ -79,11 +87,32 @@ class StockOrderService:
     @staticmethod
     def get_order(db: Session, order_id: int, store_id: int) -> Optional[StockOrder]:
         """获取出入库单详情"""
-        return db.query(StockOrder)\
-            .filter(
+        try:
+            order = db.query(StockOrder).options(
+                joinedload(StockOrder.company),
+                joinedload(StockOrder.operator),
+                joinedload(StockOrder.items)
+            ).filter(
                 StockOrder.id == order_id,
                 StockOrder.store_id == store_id
             ).first()
+            
+            if order:
+                # 设置关联数据
+                if order.company:
+                    order.company_name = order.company.name
+                else:
+                    order.company_name = None
+                    
+                if order.operator:
+                    order.operator_name = order.operator.name
+                else:
+                    order.operator_name = None
+            
+            return order
+        except Exception as e:
+            print(f"Error getting order detail: {str(e)}")
+            raise
 
     @staticmethod
     def create_order(
@@ -217,7 +246,7 @@ class StockOrderService:
         if order.status != "draft":
             raise HTTPException(
                 status_code=400,
-                detail="只能取消草稿状态的订单"
+                detail="只能取消待处理状态的订单"
             )
             
         try:
@@ -227,4 +256,58 @@ class StockOrderService:
             return order
         except Exception as e:
             db.rollback()
-            raise HTTPException(status_code=400, detail=str(e)) 
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @staticmethod
+    def update_order(
+        db: Session,
+        order_id: int,
+        data: UpdateStockOrderRequest,
+        store_id: int,
+        operator_id: int
+    ) -> StockOrder:
+        """更新出入库单"""
+        # 获取订单
+        order = db.query(StockOrder).filter(
+            StockOrder.id == order_id,
+            StockOrder.store_id == store_id
+        ).first()
+        
+        if not order:
+            raise ValueError("订单不存在")
+        
+        # 更新基本信息
+        order.company_id = data.company_id
+        order.notes = data.notes
+        order.operator_id = operator_id
+        order.updated_at = datetime.now()
+        
+        # 删除原有的商品明细
+        db.query(StockOrderItem).filter(StockOrderItem.order_id == order_id).delete()
+        
+        # 添加新的商品明细
+        total_amount = 0
+        for item_data in data.items:
+            item_total = item_data.quantity * item_data.price  # 计算单项总金额
+            item = StockOrderItem(
+                order_id=order_id,
+                inventory_id=item_data.inventory_id,
+                barcode=item_data.barcode,
+                quantity=item_data.quantity,
+                price=item_data.price,
+                total=item_total,  # 设置单项总金额
+                notes=item_data.notes
+            )
+            total_amount += item_total
+            db.add(item)
+        
+        # 更新总金额
+        order.total_amount = total_amount
+        
+        try:
+            db.commit()
+            db.refresh(order)
+            return order
+        except Exception as e:
+            db.rollback()
+            raise ValueError(f"更新订单失败: {str(e)}") 
