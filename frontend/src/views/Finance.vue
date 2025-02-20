@@ -616,7 +616,6 @@ const submitPayment = async () => {
     paymentDialogVisible.value = false;
     loadData();
   } catch (error) {
-    console.error('操作失败:', error);
     ElMessage.error('操作失败');
   }
 };
@@ -646,7 +645,6 @@ const submitCompany = async () => {
     companyDialogVisible.value = false;
     loadData(); // 直接重新加载数据，而不是手动添加到列表中
   } catch (error: any) {
-    console.error('添加失败:', error);
     if (error.response?.detail === '公司名称已存在') {
       ElMessage.error('公司名称已存在');
     } else {
@@ -727,7 +725,6 @@ const loadHistory = async () => {
     // 直接使用返回的数组，因为后端已经不再包装在 items 中
     transactionHistory.value = response;
   } catch (error) {
-    console.error('加载交易记录失败:', error);
     ElMessage.error('加载交易记录失败');
   } finally {
     historyLoading.value = false;
@@ -820,7 +817,6 @@ const submitEdit = async () => {
     editDialogVisible.value = false;
     loadData(); // 重新加载数据
   } catch (error: any) {
-    console.error('修改失败:', error);
     if (error.response?.detail === '公司名称已存在') {
       ElMessage.error('公司名称已存在');
     } else {

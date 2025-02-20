@@ -301,12 +301,10 @@ const loadInventoryNames = async (inventoryIds: number[]) => {
           inventoryNames.value[id] = response.name
         }
       } catch (error) {
-        console.error(`加载商品 ${id} 信息失败:`, error)
       }
     })
     await Promise.all(promises)
   } catch (error) {
-    console.error('加载商品信息失败:', error)
   }
 }
 

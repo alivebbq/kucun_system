@@ -121,7 +121,6 @@ const handleLogin = async () => {
           router.push('/');
         }
       } catch (error: any) {
-        console.error('登录失败:', error);
         ElMessage.error(error.response?.data?.detail || '登录失败');
       } finally {
         loading.value = false;

@@ -289,7 +289,6 @@ const loadCompanies = async () => {
     // 合并供应商和客户列表
     companies.value = [...suppliers.items, ...customers.items];
   } catch (error) {
-    console.error('加载公司列表失败:', error);
     ElMessage.error('加载公司列表失败');
   }
 };
@@ -325,7 +324,6 @@ const loadTransactions = async () => {
     transactions.value = response.items;
     total.value = response.total;
   } catch (error) {
-    console.error('加载交易记录失败:', error);
     ElMessage.error('加载交易记录失败');
   } finally {
     loading.value = false;
@@ -424,7 +422,6 @@ const loadProductList = async () => {
     productList.value = response.items;
     productListTotal.value = response.total;
   } catch (error) {
-    console.error('加载商品列表失败:', error);
     ElMessage.error('加载商品列表失败');
   } finally {
     productListLoading.value = false;
@@ -478,7 +475,6 @@ const searchProduct = async (query: string) => {
       ...item
     }));
   } catch (error) {
-    console.error('搜索商品失败:', error);
     return [];
   }
 };
@@ -509,7 +505,6 @@ const handleCancel = async (row: any) => {
     loadTransactions();
   } catch (error: any) {
     if (error !== 'cancel') {
-      console.error('撤销失败:', error);
       ElMessage.error(error.response?.data?.detail || '撤销失败');
     }
   }

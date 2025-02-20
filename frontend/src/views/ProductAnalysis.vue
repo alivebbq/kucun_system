@@ -403,7 +403,6 @@ const handleSearch = async () => {
             await loadAnalysisData();
         }
     } catch (error) {
-        console.error('查询商品失败:', error);
         ElMessage.error('商品不存在');
         currentProduct.value = null;
     }
@@ -495,7 +494,6 @@ const loadAnalysisData = async () => {
             });
         });
     } catch (error) {
-        console.error('加载分析数据失败:', error);
         ElMessage.error('加载分析数据失败');
         priceData.value = initChartData();
         profitData.value = initProfitData();
@@ -526,7 +524,6 @@ const querySearch = async (queryString: string, cb: (arg: any[]) => void) => {
         }));
         cb(suggestions);
     } catch (error) {
-        console.error('搜索商品失败:', error);
         cb([]);
     }
 };
@@ -546,7 +543,6 @@ const showProductList = async () => {
         productList.value = response;
         productListVisible.value = true;
     } catch (error) {
-        console.error('加载商品列表失败:', error);
         ElMessage.error('加载商品列表失败');
     }
 };

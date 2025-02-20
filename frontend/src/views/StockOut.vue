@@ -344,7 +344,6 @@ const querySearch = async (queryString: string, cb: (arg: any[]) => void) => {
     }));
     cb(suggestions);
   } catch (error) {
-    console.error('搜索商品失败:', error);
     cb([]);
   }
 };
@@ -360,7 +359,6 @@ const showProductList = async () => {
     productList.value = response;
     productListVisible.value = true;
   } catch (error) {
-    console.error('加载商品列表失败:', error);
     ElMessage.error('加载商品列表失败');
   }
 };
@@ -446,7 +444,6 @@ const handleSubmit = async () => {
     loadRecentRecords();
   } catch (error) {
     // 表单验证失败的处理
-    console.error('表单验证失败:', error);
   }
 };
 
@@ -505,7 +502,6 @@ const loadRecentRecords = async () => {
     });
     recentRecords.value = response.items;
   } catch (error) {
-    console.error('加载出库记录失败:', error);
     ElMessage.error('加载出库记录失败');
   }
 };
@@ -518,7 +514,6 @@ const loadCompanies = async () => {
     companies.value = response.items;
     console.log('Customers loaded:', companies.value);
   } catch (error: any) {
-    console.error('Failed to load customers:', error);
     ElMessage.error(error.response?.data?.detail || '加载客户列表失败');
   }
 };

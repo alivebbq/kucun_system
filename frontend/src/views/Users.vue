@@ -264,7 +264,6 @@ const loadUsers = async () => {
   try {
     users.value = await getUsers();
   } catch (error) {
-    console.error('加载用户列表失败:', error);
     ElMessage.error('加载用户列表失败');
   } finally {
     loading.value = false;
@@ -319,7 +318,6 @@ const handleToggleStatus = async (row: any) => {
     loadUsers();
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('操作失败:', error);
       ElMessage.error('操作失败');
     }
   }
@@ -344,7 +342,6 @@ const handleSubmit = async () => {
         dialogVisible.value = false;
         loadUsers();
       } catch (error) {
-        console.error('操作失败:', error);
         ElMessage.error('操作失败');
       }
     }
@@ -387,7 +384,6 @@ const handleAddUser = async (formEl: FormInstance | null) => {
     await loadUsers();
     formEl.resetFields();
   } catch (error) {
-    console.error('添加失败:', error);
     ElMessage.error('添加失败');
   }
 };

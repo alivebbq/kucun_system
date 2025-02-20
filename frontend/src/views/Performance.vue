@@ -212,7 +212,6 @@ const loadStats = async () => {
     
     stats.value = response;
   } catch (error) {
-    console.error('加载统计数据失败:', error);
     ElMessage.error('加载统计数据失败');
   }
 };

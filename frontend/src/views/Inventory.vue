@@ -274,7 +274,6 @@ const handleDelete = async (row: Inventory) => {
     await loadInventory();
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除商品失败:', error);
       ElMessage.error('删除失败');
     }
   }
@@ -335,7 +334,6 @@ const handleToggleStatus = async (row: Inventory) => {
     await loadInventory();
   } catch (error: any) {
     if (error !== 'cancel') {
-      console.error('操作失败:', error);
       // 显示后端返回的具体错误信息
       ElMessage.error(error.response?.detail || '操作失败');
     }

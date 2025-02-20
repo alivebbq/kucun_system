@@ -57,7 +57,6 @@ const loadLogs = async () => {
     const response = await getOperationLogs();
     logs.value = response;
   } catch (error) {
-    console.error('加载日志失败:', error);
     ElMessage.error('加载日志失败');
   }
 };

@@ -299,7 +299,6 @@ const querySearch = async (queryString: string) => {
       ...item
     }));
   } catch (error) {
-    console.error('搜索商品失败:', error);
     return [];
   }
 };
@@ -324,7 +323,6 @@ const loadRecentRecords = async () => {
     });
     recentRecords.value = response.items;
   } catch (error) {
-    console.error('加载入库记录失败:', error);
     ElMessage.error('加载入库记录失败');
   }
 };
@@ -375,7 +373,6 @@ const loadCompanies = async () => {
     companies.value = response.items;
     console.log('Suppliers loaded:', companies.value);
   } catch (error: any) {
-    console.error('Failed to load suppliers:', error);
     ElMessage.error(error.response?.data?.detail || '加载供应商列表失败');
   }
 };
@@ -403,7 +400,6 @@ const handleSubmit = async () => {
         ElMessage.success('入库成功');
         resetForm();
       } catch (error: any) {
-        console.error('入库失败:', error);
         ElMessage.error(error.response?.data?.detail || '入库失败');
       }
     }
@@ -417,7 +413,6 @@ const showProductList = async () => {
     productList.value = response;
     productListVisible.value = true;
   } catch (error) {
-    console.error('加载商品列表失败:', error);
     ElMessage.error('加载商品列表失败');
   }
 };
@@ -455,7 +450,6 @@ const handleCancel = async (row: Transaction) => {
       await querySearch(row.barcode);
     }
   } catch (error: any) {
-    console.error('Cancel error:', error);
     if (error !== 'cancel') {
       ElMessage.error(error.response?.data?.detail || '撤销失败');
     }
