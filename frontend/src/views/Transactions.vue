@@ -13,6 +13,7 @@
               clearable
               class="search-input"
               @select="handleSelect"
+              @clear="handleClear"
             >
               <template #prefix>
                 <el-icon><Search /></el-icon>
@@ -27,6 +28,12 @@
                 </div>
               </template>
             </el-autocomplete>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="showProductList">
+              <el-icon><List /></el-icon>
+              选择商品
+            </el-button>
           </el-form-item>
           <el-form-item label="类型">
             <el-select 
@@ -69,20 +76,6 @@
               value-format="YYYY-MM-DD"
             />
           </el-form-item>
-          <el-form-item>
-            <el-button type="primary" @click="showProductList">
-              <el-icon><List /></el-icon>
-              选择商品
-            </el-button>
-            <el-button type="primary" @click="handleSearch">
-              <el-icon><Search /></el-icon>
-              查询
-            </el-button>
-            <el-button @click="resetFilters">
-              <el-icon><Refresh /></el-icon>
-              重置
-            </el-button>
-          </el-form-item>
         </el-form>
       </div>
     </div>
@@ -100,6 +93,7 @@
         height="500px"
         :header-cell-class-name="'table-header'"
         @row-click="handleProductSelect"
+        v-loading="productListLoading"
       >
         <el-table-column prop="barcode" label="条形码" width="150" />
         <el-table-column prop="name" label="商品名称" />
@@ -113,6 +107,19 @@
           </template>
         </el-table-column>
       </el-table>
+      
+      <!-- 添加分页组件 -->
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="productListPage"
+          v-model:page-size="productListPageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="productListTotal"
+          layout="total, sizes, prev, pager, next"
+          @size-change="handleProductListSizeChange"
+          @current-change="handleProductListPageChange"
+        />
+      </div>
     </el-dialog>
 
     <!-- 交易记录表格 -->
@@ -125,14 +132,6 @@
       >
         <el-table-column prop="barcode" label="条形码" width="150" />
         <el-table-column prop="name" label="商品名称" min-width="150" />
-        <el-table-column 
-          label="公司" 
-          min-width="120"
-        >
-          <template #default="{ row }">
-            {{ row.company?.name || row.company_name || '-' }}
-          </template>
-        </el-table-column>
         <el-table-column prop="type" label="类型" width="100">
           <template #default="{ row }">
             <el-tag 
@@ -141,6 +140,19 @@
             >
               {{ transactionTypes[row.type] }}
             </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column 
+          label="公司" 
+          min-width="120"
+        >
+          <template #default="{ row }">
+            {{ row.company?.name || row.company_name || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="notes" label="备注" width="180">
+          <template #default="{ row }">
+            {{ row.notes }}
           </template>
         </el-table-column>
         <el-table-column prop="quantity" label="数量" width="100" align="right" />
@@ -158,17 +170,6 @@
         <el-table-column prop="timestamp" label="时间" width="180">
           <template #default="{ row }">
             {{ formatDate(row.timestamp) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
-          <template #default="{ row }">
-            <el-button 
-              type="danger" 
-              link 
-              @click="handleCancel(row)"
-            >
-              撤销
-            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -190,10 +191,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Search, Refresh, List } from '@element-plus/icons-vue';
-import { getTransactions, cancelTransaction, searchInventory, getInventoryList } from '../api/inventory';
+import { getTransactions, cancelTransaction, getInventoryList } from '../api/inventory';
 import type { Inventory } from '../types/inventory';
 import { getCompanies } from '../api/company';
 import type { Company } from '../types/company';
@@ -331,6 +332,31 @@ const loadTransactions = async () => {
   }
 };
 
+// 监听筛选条件变化
+watch([
+  () => filters.value.type,
+  () => filters.value.company_id,
+  dateRange
+], () => {
+  // 更新日期过滤条件
+  if (dateRange.value?.length === 2) {
+    filters.value.startDate = dateRange.value[0];
+    filters.value.endDate = dateRange.value[1];
+  } else {
+    filters.value.startDate = '';
+    filters.value.endDate = '';
+  }
+  currentPage.value = 1; // 重置到第一页
+  loadTransactions();
+}, { deep: true });
+
+// 处理清除搜索
+const handleClear = () => {
+  filters.value.barcode = '';
+  currentPage.value = 1;
+  loadTransactions();
+};
+
 // 处理搜索
 const handleSearch = () => {
   if (dateRange.value?.length === 2) {
@@ -374,32 +400,79 @@ const handleCurrentChange = (val: number) => {
 const productListVisible = ref(false);
 const productList = ref<Inventory[]>([]);
 
-// 显示商品列表
+// 添加商品列表分页相关的响应式变量
+const productListLoading = ref(false);
+const productListPage = ref(1);
+const productListPageSize = ref(20);
+const productListTotal = ref(0);
+
+// 修改显示商品列表的方法
 const showProductList = async () => {
+  productListVisible.value = true;
+  await loadProductList();
+};
+
+// 添加加载商品列表的方法
+const loadProductList = async () => {
+  productListLoading.value = true;
   try {
-    const response = await getInventoryList();
-    productList.value = response.data;
-    productListVisible.value = true;
+    const response = await getInventoryList({
+      page: productListPage.value,
+      page_size: productListPageSize.value,
+      search: ''
+    });
+    productList.value = response.items;
+    productListTotal.value = response.total;
   } catch (error) {
     console.error('加载商品列表失败:', error);
     ElMessage.error('加载商品列表失败');
+  } finally {
+    productListLoading.value = false;
   }
 };
+
+// 添加商品列表分页处理方法
+const handleProductListSizeChange = (size: number) => {
+  productListPageSize.value = size;
+  productListPage.value = 1; // 重置到第一页
+  loadProductList();
+};
+
+const handleProductListPageChange = (page: number) => {
+  productListPage.value = page;
+  loadProductList();
+};
+
+// 修改对话框关闭时的处理
+watch(productListVisible, (newVal) => {
+  if (!newVal) {
+    // 对话框关闭时重置分页
+    productListPage.value = 1;
+    productListPageSize.value = 20;
+    productList.value = [];
+    productListTotal.value = 0;
+  }
+});
 
 // 从列表选择商品
 const handleProductSelect = (row: Inventory) => {
   searchQuery.value = row.name;
   filters.value.barcode = row.barcode;
   productListVisible.value = false;
-  handleSearch();
+  currentPage.value = 1;
+  loadTransactions();
 };
 
 // 搜索商品
 const searchProduct = async (query: string) => {
   if (!query) return [];
   try {
-    const response = await searchInventory(query);
-    return response.data.map((item: Inventory) => ({
+    const response = await getInventoryList({
+      page: 1,
+      page_size: 10,  // 搜索建议显示前10条
+      search: query
+    });
+    return response.items.map((item: Inventory) => ({
       value: item.barcode,
       label: `${item.name} (${item.barcode})`,
       ...item
@@ -414,7 +487,8 @@ const searchProduct = async (query: string) => {
 const handleSelect = (item: any) => {
   searchQuery.value = item.name;
   filters.value.barcode = item.barcode;
-  handleSearch();
+  currentPage.value = 1;
+  loadTransactions();
 };
 
 // 处理撤销
@@ -489,4 +563,15 @@ onMounted(() => {
 }
 
 // 其他样式已在 common.scss 中定义
+
+// 添加加载状态的样式
+.el-table {
+  position: relative;
+  
+  &.is-loading {
+    &::after {
+      background-color: rgba(255, 255, 255, 0.7);
+    }
+  }
+}
 </style> 

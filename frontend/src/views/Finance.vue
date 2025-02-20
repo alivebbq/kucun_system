@@ -24,7 +24,7 @@
             <div class="search-box">
               <el-input
                 v-model="customerSearch"
-                placeholder="搜索客户名称/联系人/电话/地址"
+                placeholder="客户名称/联系人/电话/地址"
                 clearable
                 @input="handleCustomerSearch"
               >
@@ -102,7 +102,7 @@
             <div class="search-box">
               <el-input
                 v-model="supplierSearch"
-                placeholder="搜索供应商"
+                placeholder="供应商名称/联系人/电话/地址"
                 clearable
                 @input="handleSupplierSearch"
               >
@@ -542,7 +542,6 @@ const loadData = async () => {
     const supplierTotalResponse = await getCompanyTotalBalance(CompanyType.SUPPLIER);
     totalPayable.value = Number(supplierTotalResponse.total_payable);
   } catch (error) {
-    console.error('加载数据失败:', error);
     ElMessage.error('加载数据失败');
   } finally {
     loading.value = false;

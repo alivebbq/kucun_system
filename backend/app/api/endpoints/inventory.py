@@ -15,18 +15,40 @@ from app.schemas.inventory import (
     StockOrderCreate, StockOrder, StockOrderList,
     StockOrderUpdate, StockOrderConfirmation, UpdateStockOrderRequest
 )
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1")  # 添加前缀
 
-@router.get("/inventory/", response_model=List[Inventory])
+class InventoryResponse(BaseModel):
+    items: List[Inventory]
+    total: int
+
+    class Config:
+        from_attributes = True
+
+@router.get("/inventory/", response_model=InventoryResponse)
 def list_inventory(
-    skip: int = 0,
-    limit: int = 100,
+    page: int = Query(1, gt=0),
+    page_size: int = Query(20, gt=0),
+    search: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
     """获取库存列表"""
-    return InventoryService.get_inventory(db, current_user.store_id, skip=skip, limit=limit)
+    skip = (page - 1) * page_size
+    items = InventoryService.get_inventory(
+        db, 
+        store_id=current_user.store_id,
+        skip=skip,
+        limit=page_size,
+        search=search
+    )
+    total = InventoryService.get_inventory_count(
+        db,
+        store_id=current_user.store_id,
+        search=search
+    )
+    return InventoryResponse(items=items, total=total)
 
 @router.get("/inventory/barcode/{barcode}", response_model=Inventory)
 def get_inventory_by_barcode(
@@ -135,8 +157,9 @@ def get_inventory_stats(
 def list_transactions(
     barcode: Optional[str] = None,
     type: Optional[str] = None,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
+    company_id: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
@@ -148,6 +171,7 @@ def list_transactions(
         current_user.store_id,
         barcode=barcode,
         type=type,
+        company_id=company_id,
         start_date=start_date,
         end_date=end_date,
         skip=skip,
@@ -309,13 +333,12 @@ def get_stock_orders(
     search: Optional[str] = Query(None),
     type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    start_date: Optional[datetime] = Query(None),
-    end_date: Optional[datetime] = Query(None)
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None)
 ):
     """获取出入库单列表"""
     # 计算skip
     skip = (page - 1) * limit
-    
     orders = StockOrderService.get_orders(
         db=db,
         store_id=current_user.store_id,
@@ -449,3 +472,19 @@ def get_inventory_by_id(
     if not inventory:
         raise HTTPException(status_code=404, detail="商品不存在")
     return inventory 
+
+# 添加获取总数的接口
+@router.get("/inventory/count")
+def get_inventory_count(
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """获取库存商品总数"""
+    return {
+        "total": InventoryService.get_inventory_count(
+            db,
+            store_id=current_user.store_id,
+            search=search
+        )
+    } 

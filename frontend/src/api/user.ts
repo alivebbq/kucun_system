@@ -41,17 +41,29 @@ export const getUsers = () => {
     return api.get<User[]>('/api/v1/auth/users');
 };
 
-export const createUser = (data: {
+export const createUser = async (data: {
     username: string;
     name: string;
     password: string;
     permissions: string[];
 }) => {
-    return api.post<User>('/api/v1/auth/users', data);
+    try {
+        const response = await api.post<User>('/api/v1/auth/users', data);
+        return response;
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.detail || '创建用户失败';
+        throw new Error(errorMessage);
+    }
 };
 
-export const updateUser = (userId: number, data: any) => {
-    return api.put<User>(`/api/v1/auth/users/${userId}`, data);
+export const updateUser = async (userId: number, data: any) => {
+    try {
+        const response = await api.put<User>(`/api/v1/auth/users/${userId}`, data);
+        return response;
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.detail || '更新用户信息失败';
+        throw new Error(errorMessage);
+    }
 };
 
 export const deleteUser = (id: number) => {

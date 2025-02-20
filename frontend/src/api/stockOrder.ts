@@ -32,9 +32,15 @@ export const getStockOrder = (id: number) => {
 }
 
 // 创建出入库单
-export const createStockOrder = (data: CreateStockOrderRequest) => {
-    return api.post<StockOrder>('/api/v1/stock-orders', data)
-}
+export const createStockOrder = async (data: CreateStockOrderRequest) => {
+    try {
+        const response = await api.post<StockOrder>('/api/v1/stock-orders', data);
+        return response;
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.detail || '创建出入库单失败';
+        throw new Error(errorMessage);
+    }
+};
 
 // 确认出入库单
 export const confirmStockOrder = (id: number) => {
@@ -47,6 +53,12 @@ export const cancelStockOrder = (id: number) => {
 }
 
 // 更新出入库单
-export const updateStockOrder = (id: number, data: any) => {
-    return api.put<StockOrder>(`/api/v1/stock-orders/${id}`, data)
-} 
+export const updateStockOrder = async (id: number, data: any) => {
+    try {
+        const response = await api.put<StockOrder>(`/api/v1/stock-orders/${id}`, data);
+        return response;
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.detail || '更新出入库单失败';
+        throw new Error(errorMessage);
+    }
+}; 

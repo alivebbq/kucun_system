@@ -25,7 +25,7 @@
 
     <el-card class="content-card">
       <el-table 
-        :data="filteredInventory" 
+        :data="inventory" 
         style="width: 100%"
         v-loading="loading"
         :header-cell-class-name="'table-header'"
@@ -71,6 +71,19 @@
           </template>
         </el-table-column>
       </el-table>
+      
+      <!-- 添加分页组件 -->
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="total"
+          layout="total, sizes, prev, pager, next"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </el-card>
 
     <!-- 添加/编辑商品对话框 -->
@@ -128,6 +141,7 @@ import {
   toggleInventoryStatus,
   type Inventory
 } from '../api/inventory';
+import { count } from 'echarts/types/src/component/dataZoom/history.js';
 
 const loading = ref(false);
 const inventory = ref<Inventory[]>([]);
@@ -135,6 +149,10 @@ const searchQuery = ref('');
 const dialogVisible = ref(false);
 const isEdit = ref(false);
 const formRef = ref<FormInstance>();
+const currentPage = ref(1);
+const pageSize = ref(20);
+const total = ref(0);
+const searchTimeout = ref<number | null>(null);
 
 const form = ref({
   barcode: '',
@@ -159,17 +177,6 @@ const rules: FormRules = {
   ]
 };
 
-// 过滤库存列表
-const filteredInventory = computed(() => {
-  if (!searchQuery.value) return inventory.value;
-
-  const query = searchQuery.value.toLowerCase();
-  return inventory.value.filter(item =>
-    item.name.toLowerCase().includes(query) ||
-    item.barcode.includes(query)
-  );
-});
-
 // 格式化数字
 const formatNumber = (num: number | null) => {
   if (num === null || num === undefined) return '0.00';
@@ -183,18 +190,43 @@ const formatNumber = (num: number | null) => {
 const loadInventory = async () => {
   loading.value = true;
   try {
-    inventory.value = await getInventoryList();
+    const response = await getInventoryList({
+      page: currentPage.value,
+      page_size: pageSize.value,
+      search: searchQuery.value
+    });
+    inventory.value = response.items;
+    total.value = response.total;
   } catch (error) {
-    console.error('加载库存数据失败:', error);
     ElMessage.error('加载库存数据失败');
   } finally {
     loading.value = false;
   }
 };
 
-// 处理搜索
+// 处理搜索 - 添加防抖
 const handleSearch = () => {
-  // 实时搜索，无需额外处理
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value);
+  }
+  
+  searchTimeout.value = window.setTimeout(() => {
+    currentPage.value = 1; // 重置到第一页
+    loadInventory();
+  }, 300);
+};
+
+// 处理页码变化
+const handleCurrentChange = (page: number) => {
+  currentPage.value = page;
+  loadInventory();
+};
+
+// 处理每页条数变化
+const handleSizeChange = (size: number) => {
+  pageSize.value = size;
+  currentPage.value = 1; // 重置到第一页
+  loadInventory();
 };
 
 // 处理添加商品
@@ -274,12 +306,11 @@ const handleSubmit = async () => {
           await createInventory(form.value);
           ElMessage.success('添加成功');
         }
-        handleDialogClose();  // 使用统一的关闭处理
-        loadInventory();
+        handleDialogClose();
+        loadInventory(); // 重新加载当前页数据
       } catch (error: any) {
-        console.error('操作失败:', error);
-        // 显示后端返回的具体错误信息
-        ElMessage.error(error.response?.data?.detail || '操作失败');
+        // 直接显示错误信息
+        ElMessage.error(error.message);
       }
     }
   });
@@ -306,7 +337,7 @@ const handleToggleStatus = async (row: Inventory) => {
     if (error !== 'cancel') {
       console.error('操作失败:', error);
       // 显示后端返回的具体错误信息
-      ElMessage.error(error.response?.data?.detail || '操作失败');
+      ElMessage.error(error.response?.detail || '操作失败');
     }
   }
 };
@@ -319,6 +350,9 @@ onMounted(() => {
 onUnmounted(() => {
   inventory.value = [];
   searchQuery.value = '';
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value);
+  }
   if (dialogVisible.value) {
     handleDialogClose();
   }
@@ -342,5 +376,11 @@ onUnmounted(() => {
       color: #F56C6C;
     }
   }
+}
+
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

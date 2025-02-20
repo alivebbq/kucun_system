@@ -20,8 +20,14 @@ export const getCompanies = async (params?: { type?: CompanyType }) => {
 };
 
 // 创建公司
-export const createCompany = (data: Partial<Company>) => {
-    return api.post<Company>('/api/v1/companies/', data);
+export const createCompany = async (data: Partial<Company>) => {
+    try {
+        const response = await api.post<Company>('/api/v1/companies/', data);
+        return response;
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.detail || '添加公司失败';
+        throw new Error(errorMessage);
+    }
 };
 
 // 获取应收应付情况
@@ -37,13 +43,19 @@ export const getCompanyBalances = (params?: {
 };
 
 // 创建收付款记录
-export const createPayment = (data: {
+export const createPayment = async (data: {
     company_id: number;
     amount: number;
     type: 'receive' | 'pay';
     notes?: string;
 }) => {
-    return api.post<Payment>('/api/v1/payments/', data);
+    try {
+        const response = await api.post<Payment>('/api/v1/payments/', data);
+        return response;
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.detail || '创建收付款记录失败';
+        throw new Error(errorMessage);
+    }
 };
 
 // 获取收付款记录
@@ -59,8 +71,14 @@ export const getCompanyTransactions = (companyId: number) => {
 };
 
 // 添加更新公司信息的接口
-export const updateCompany = (id: number, data: Partial<Company>) => {
-    return api.put<Company>(`/api/v1/companies/${id}`, data);
+export const updateCompany = async (id: number, data: Partial<Company>) => {
+    try {
+        const response = await api.put<Company>(`/api/v1/companies/${id}`, data);
+        return response;
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.detail || '更新公司信息失败';
+        throw new Error(errorMessage);
+    }
 };
 
 // 获取总应收应付金额

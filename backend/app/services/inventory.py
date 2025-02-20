@@ -24,12 +24,52 @@ from app.models.inventory import OrderStatus
 
 class InventoryService:
     @staticmethod
-    def get_inventory(db: Session, store_id: int, skip: int = 0, limit: int = 100):
-        return db.query(Inventory)\
-            .filter(Inventory.store_id == store_id)\
-            .offset(skip)\
-            .limit(limit)\
-            .all()
+    def get_inventory(
+        db: Session, 
+        store_id: int, 
+        skip: int = 0, 
+        limit: int = 20,
+        search: Optional[str] = None
+    ):
+        """获取库存列表，支持分页和搜索"""
+        query = db.query(Inventory).filter(Inventory.store_id == store_id)
+        
+        # 添加搜索条件
+        if search:
+            search = f"%{search}%"
+            query = query.filter(
+                or_(
+                    Inventory.barcode.ilike(search),
+                    Inventory.name.ilike(search)
+                )
+            )
+        
+        # 添加排序
+        query = query.order_by(Inventory.created_at.desc())
+        
+        # 分页
+        return query.offset(skip).limit(limit).all()
+
+    @staticmethod
+    def get_inventory_count(
+        db: Session,
+        store_id: int,
+        search: Optional[str] = None
+    ) -> int:
+        """获取库存商品总数"""
+        query = db.query(Inventory).filter(Inventory.store_id == store_id)
+        
+        # 添加搜索条件
+        if search:
+            search = f"%{search}%"
+            query = query.filter(
+                or_(
+                    Inventory.barcode.ilike(search),
+                    Inventory.name.ilike(search)
+                )
+            )
+        
+        return query.count()
     
     @staticmethod
     def get_inventory_by_barcode(db: Session, barcode: str, store_id: int):
@@ -310,6 +350,7 @@ class InventoryService:
         store_id: int,
         barcode: Optional[str] = None,
         type: Optional[str] = None,
+        company_id: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         skip: int = 0,
@@ -331,13 +372,16 @@ class InventoryService:
         )
         
         # 添加过滤条件
+        if barcode:
+            query = query.filter(Transaction.barcode == barcode)
         if type and type.strip():
             query = query.filter(Transaction.type == type)
         if start_date:
             query = query.filter(Transaction.timestamp >= start_date)
         if end_date:
             query = query.filter(Transaction.timestamp <= end_date)
-        
+        if company_id:
+            query = query.filter(Transaction.company_id == company_id)
         # 添加排序条件，按时间倒序排列
         query = query.order_by(Transaction.timestamp.desc())
         

@@ -160,12 +160,6 @@ const loadStatistics = async () => {
     console.log('Statistics response:', response);
     stats.value = response;
   } catch (error: any) {
-    console.error('Error loading statistics:', {
-      error,
-      response: error.response,
-      status: error.response?.status,
-      data: error.response?.data
-    });
     ElMessage.error(error.response?.data?.detail || '加载统计数据失败');
   } finally {
     loading.value = false;

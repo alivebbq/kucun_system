@@ -52,9 +52,23 @@ export interface TransactionResponse {
     total: number;
 }
 
-// 获取库存列表
-export const getInventoryList = (params?: { skip?: number; limit?: number }) => {
-    return api.get<Inventory[]>('/api/v1/inventory/', { params });
+// 添加分页查询参数接口
+export interface InventoryQueryParams {
+    page: number;
+    page_size: number;
+    search?: string;
+}
+
+// 添加分页响应接口
+export interface PaginatedResponse<T> {
+    items: T[];
+    total: number;
+}
+
+// 修改获取库存列表的方法
+export const getInventoryList = async (params: InventoryQueryParams): Promise<PaginatedResponse<Inventory>> => {
+    const response = await api.get<PaginatedResponse<Inventory>>('/api/v1/inventory', { params });
+    return response;
 };
 
 // 根据条形码获取商品
@@ -73,7 +87,9 @@ export const createInventory = async (data: Partial<Inventory>) => {
         const response = await api.post<Inventory>('/api/v1/inventory/', data);
         return response;
     } catch (error: any) {
-        throw error;
+        // 获取后端返回的具体错误信息
+        const errorMessage = error.response?.data?.detail || '添加商品失败';
+        throw new Error(errorMessage);
     }
 };
 
@@ -83,7 +99,9 @@ export const updateInventory = async (barcode: string, data: Partial<Inventory>)
         const response = await api.put<Inventory>(`/api/v1/inventory/${barcode}`, data);
         return response;
     } catch (error: any) {
-        throw error;
+        // 获取后端返回的具体错误信息
+        const errorMessage = error.response?.data?.detail || '更新商品失败';
+        throw new Error(errorMessage);
     }
 };
 
@@ -118,6 +136,7 @@ export const getInventoryStats = () => {
 export const getTransactions = (params?: {
     barcode?: string;
     type?: string;
+    company_id?: number;
     start_date?: string;
     end_date?: string;
     skip?: number;
