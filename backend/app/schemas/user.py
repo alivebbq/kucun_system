@@ -2,6 +2,7 @@ from pydantic import BaseModel, constr
 from typing import List, Optional, Union
 from datetime import datetime
 from pydantic import validator
+from app.models.user import VALID_PERMISSIONS
 
 class UserBase(BaseModel):
     username: constr(min_length=3, max_length=50)
@@ -17,20 +18,11 @@ class UserCreate(UserBase):
 
     @validator('permissions')
     def validate_permissions(cls, v):
-        valid_permissions = {
-            'dashboard',        # 仪表盘
-            'inventory',        # 库存管理
-            'stock_in',        # 商品入库
-            'stock_out',       # 商品出库
-            'transactions',     # 交易记录
-            'performance',      # 业绩统计
-            'analysis'         # 商品分析
-        }
-        invalid_perms = set(v) - valid_permissions
+        invalid_perms = set(v) - set(VALID_PERMISSIONS)
         if invalid_perms:
             raise ValueError(
                 f'无效的权限: {", ".join(invalid_perms)}。\n'
-                f'有效的权限包括: {", ".join(valid_permissions)}'
+                f'有效的权限包括: {", ".join(VALID_PERMISSIONS)}'
             )
         return v
 

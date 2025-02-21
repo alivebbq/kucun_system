@@ -106,7 +106,7 @@ class CompanyService:
         skip: int = 0,
         limit: int = 10,
         type: Optional[str] = None,
-        search: Optional[str] = None  # 添加搜索参数
+        search: Optional[str] = None
     ):
         """获取所有公司的应收应付情况"""
         query = db.query(Company).filter(Company.store_id == store_id)
@@ -114,7 +114,7 @@ class CompanyService:
         if type:
             query = query.filter(Company.type == type)
         
-        if search:  # 添加搜索条件
+        if search:
             search = f"%{search}%"
             query = query.filter(
                 or_(

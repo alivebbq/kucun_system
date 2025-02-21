@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from passlib.context import CryptContext
 from datetime import datetime
 from typing import List, Optional
-from app.models.user import User
+from app.models.user import User, VALID_PERMISSIONS
 from app.schemas.user import UserCreate, UserUpdate
 
 # 将 pwd_context 移到类外面作为模块级变量
@@ -33,27 +33,42 @@ class UserService:
         return users
     
     @staticmethod
-    def create_user(db: Session, user: UserCreate, store_id: int):
+    def validate_permissions(permissions: list) -> bool:
+        """验证权限列表是否合法"""
+        invalid_permissions = [p for p in permissions if p not in VALID_PERMISSIONS]
+        if invalid_permissions:
+            raise ValueError(
+                f"无效的权限: {', '.join(invalid_permissions)}。\n"
+                f"有效的权限包括: {', '.join(VALID_PERMISSIONS)}"
+            )
+        return True
+
+    @staticmethod
+    def create_user(db: Session, user_data: UserCreate, store_id: int) -> User:
         """创建新用户"""
+        # 验证权限
+        if user_data.permissions:
+            UserService.validate_permissions(user_data.permissions)
+            
         try:
             # 检查用户名是否已存在
-            if db.query(User).filter(User.username == user.username).first():
+            if db.query(User).filter(User.username == user_data.username).first():
                 return None
             
             # 处理权限列表
-            if isinstance(user.permissions, list):
-                permissions = ','.join(user.permissions)
+            if isinstance(user_data.permissions, list):
+                permissions = ','.join(user_data.permissions)
             else:
-                permissions = user.permissions.strip('[]() ').split(',')
+                permissions = user_data.permissions.strip('[]() ').split(',')
                 permissions = [p.strip('\'\" ') for p in permissions if p.strip()]
                 permissions = ','.join(permissions)
             
-            hashed_password = pwd_context.hash(user.password)
+            hashed_password = pwd_context.hash(user_data.password)
             db_user = User(
-                username=user.username,
-                name=user.name,
+                username=user_data.username,
+                name=user_data.name,
                 hashed_password=hashed_password,
-                is_owner=user.is_owner,
+                is_owner=user_data.is_owner,
                 store_id=store_id,
                 permissions=permissions,
                 created_at=datetime.now()

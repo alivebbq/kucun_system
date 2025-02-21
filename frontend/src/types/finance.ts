@@ -28,4 +28,23 @@ export interface TransactionQueryParams {
     type?: TransactionType;
     start_date?: string;
     end_date?: string;
+}
+
+export interface ProfitStatistics {
+    received_payments: number;
+    other_income: number;
+    total_income: number;
+    paid_payments: number;
+    other_expense: number;
+    total_expense: number;
+    profit: number;
+}
+
+
+export interface PaymentRecord {
+    payment_date: string;
+    company_name: string;
+    amount: number;
+    notes?: string;
+    operator_name: string;
 } 

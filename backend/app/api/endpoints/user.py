@@ -7,6 +7,8 @@ from app.services.user import UserService
 from app.core.auth import create_access_token, get_current_user, get_current_active_user
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import Request
+from app.models.user import VALID_PERMISSIONS
+from pydantic import BaseModel, validator
 
 router = APIRouter()
 
@@ -37,7 +39,6 @@ def create_user(
     current_user: User = Depends(get_current_active_user)
 ):
     """创建新员工（仅店主可用）"""
-    # 检查是否是店主
     if not current_user.is_owner:
         raise HTTPException(
             status_code=403,
@@ -54,6 +55,8 @@ def create_user(
     try:
         # 创建新用户
         return UserService.create_user(db, user, current_user.store_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         print(f"Error creating user: {str(e)}")
         db.rollback()
@@ -107,4 +110,20 @@ def delete_user(
     """删除员工（仅店主可用）"""
     if not UserService.delete_user(db, user_id):
         raise HTTPException(status_code=404, detail="用户不存在或无法删除")
-    return {"message": "删除成功"} 
+    return {"message": "删除成功"}
+
+class UserCreate(BaseModel):
+    username: str
+    name: str
+    password: str
+    permissions: List[str]
+
+    @validator('permissions')
+    def validate_permissions(cls, v):
+        invalid_permissions = [p for p in v if p not in VALID_PERMISSIONS]
+        if invalid_permissions:
+            raise ValueError(
+                f"无效的权限: {', '.join(invalid_permissions)}。\n"
+                f"有效的权限包括: {', '.join(VALID_PERMISSIONS)}"
+            )
+        return v 

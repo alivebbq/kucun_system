@@ -185,16 +185,3 @@ def create_payment(
         current_user.store_id,
         current_user.id
     )
-
-@router.get("/payments/", response_model=List[PaymentSchema])
-def list_payments(
-    company_id: int = None,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_active_user)
-):
-    """获取收付款记录"""
-    return CompanyService.get_payments(
-        db, 
-        current_user.store_id,
-        company_id
-    ) 

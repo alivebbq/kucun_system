@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from app.db.session import get_db
 from app.core.auth import get_current_active_user
 from app.services.finance import FinanceService
-from app.schemas.finance import OtherTransactionCreate, OtherTransaction, PaginatedOtherTransactionResponse
+from app.schemas.finance import OtherTransactionCreate, OtherTransaction, PaginatedOtherTransactionResponse, ProfitStatistics, PaymentRecordOut
+from app.schemas.company import CompanyType
+from app.schemas.finance import Page
 
 router = APIRouter(prefix="/api/v1")
 
@@ -21,7 +23,6 @@ def get_transactions(
 ):
     """获取收支记录列表"""
     skip = (page - 1) * page_size
-    print(f"\n### Getting Transactions ###")
     start = datetime.fromisoformat(start_date) if start_date else None
     end = datetime.fromisoformat(end_date) if end_date else None
     
@@ -69,4 +70,42 @@ def delete_transaction(
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) 
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/finance/profit", response_model=ProfitStatistics)
+def get_profit_statistics(
+    start_date: str,
+    end_date: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """获取利润统计"""
+    start = datetime.strptime(start_date, '%Y-%m-%d').date()
+    end = datetime.strptime(end_date, '%Y-%m-%d').date()
+    
+    return FinanceService.get_profit_statistics(
+        db,
+        current_user.store_id,
+        start,
+        end
+    )
+
+@router.get("/finance/payment-records", response_model=Page[PaymentRecordOut])
+async def get_payment_records(
+    start_date: str,
+    end_date: str,
+    company_type: CompanyType,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """获取收付款记录"""
+    start = datetime.strptime(start_date, '%Y-%m-%d').date()
+    end = datetime.strptime(end_date, '%Y-%m-%d').date()
+    
+    return FinanceService.get_payment_records(
+        db=db,
+        store_id=current_user.store_id,
+        start_date=start,
+        end_date=end,
+        type=company_type
+    )

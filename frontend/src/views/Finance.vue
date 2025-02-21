@@ -131,6 +131,13 @@
                 <el-button 
                   type="primary" 
                   link 
+                  @click="handleEdit(row.company)"
+                >
+                  编辑
+                </el-button>
+                <el-button 
+                  type="primary" 
+                  link 
                   @click="handlePay(row)"
                 >
                   付款

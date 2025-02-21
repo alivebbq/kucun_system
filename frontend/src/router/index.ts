@@ -21,7 +21,8 @@ const routes = [
                 meta: {
                     title: '仪表盘',
                     icon: 'Odometer',
-                    requiresAuth: true
+                    requiresAuth: true,
+                    permission: 'dashboard'
                 }
             },
             {
@@ -30,7 +31,8 @@ const routes = [
                 meta: {
                     requiresAuth: true,
                     title: '出入库管理',
-                    icon: 'Tickets'
+                    icon: 'Tickets',
+                    permission: 'stock_order'
                 }
             },
             {
@@ -53,6 +55,17 @@ const routes = [
                     icon: 'Money',
                     requiresAuth: true,
                     permission: 'finance'
+                }
+            },
+            {
+                path: 'finance/transactions',
+                name: 'OtherTransactions',
+                component: () => import('../views/finance/OtherTransactions.vue'),
+                meta: {
+                    title: '其他收支',
+                    icon: 'Money',
+                    requiresAuth: true,
+                    permission: 'other_transactions'
                 }
             },
             {
@@ -113,6 +126,17 @@ const routes = [
                 }
             },
             {
+                path: 'finance/profit',
+                name: 'ProfitStatement',
+                component: () => import('../views/finance/ProfitStatement.vue'),
+                meta: {
+                    title: '利润表',
+                    icon: 'Histogram',
+                    requiresAuth: true,
+                    permission: 'profit_statement'
+                }
+            },
+            {
                 path: 'users',
                 name: 'Users',
                 component: () => import('../views/Users.vue'),
@@ -151,16 +175,6 @@ const routes = [
                     requiresAuth: true,
                     title: '出入库单详情',
                     hidden: true
-                }
-            },
-            {
-                path: 'finance/transactions',
-                name: 'OtherTransactions',
-                component: () => import('../views/finance/OtherTransactions.vue'),
-                meta: {
-                    title: '其他收支',
-                    icon: 'Money',
-                    requiresAuth: true
                 }
             }
         ]

@@ -37,7 +37,7 @@ class Payment(Base):
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
-    type = Column(String(20), nullable=False)  # payment/receipt
+    type = Column(String(20), nullable=False)
     notes = Column(String(255))
     operator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)

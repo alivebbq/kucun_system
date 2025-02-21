@@ -204,22 +204,26 @@ const form = ref({
 
 const permissionOrder = [
   'dashboard',
+  'stock_order',
   'inventory',
-  'stock_in',
-  'stock_out',
+  'finance',
+  'other_transactions',
   'transactions',
   'performance',
-  'analysis'
+  'analysis',
+  'profit_statement',
 ];
 
 const permissionLabels: Record<string, string> = {
   'dashboard': '仪表盘',
+  'stock_order': '出入库管理',
   'inventory': '库存管理',
-  'stock_in': '商品入库',
-  'stock_out': '商品出库',
-  'transactions': '交易记录',
+  'finance': '应收应付',
+  'other_transactions': '其他收支',
+  'transactions': '商品记录',
   'performance': '业绩统计',
-  'analysis': '商品分析'
+  'analysis': '商品分析',
+  'profit_statement': '利润表'
 };
 
 const rules: FormRules = {
@@ -419,6 +423,18 @@ const tableRowClassName = ({ row }: { row: any }) => {
   if (!row.is_active) return 'inactive-row';
   return '';
 };
+
+const permissionOptions = [
+  { label: '仪表盘', value: 'dashboard' },
+  { label: '出入库管理', value: 'stock_order' },
+  { label: '商品管理', value: 'inventory' },
+  { label: '财务管理', value: 'finance' },
+  { label: '其他收支', value: 'other_transactions' },
+  { label: '商品记录', value: 'transactions' },
+  { label: '业绩统计', value: 'performance' },
+  { label: '商品分析', value: 'analysis' },
+  { label: '利润表', value: 'profit_statement' }
+];
 
 onMounted(() => {
   loadUsers();

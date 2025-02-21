@@ -122,9 +122,11 @@
           <el-input-number
             v-model="form.amount"
             :precision="2"
-            :step="0.1"
+            :step="0"
             :min="0"
+            :controls="false"
             class="form-input"
+            placeholder="请输入金额"
           />
         </el-form-item>
         <el-form-item label="日期" prop="transaction_date">
@@ -200,9 +202,16 @@ const form = ref({
 
 // 表单校验规则
 const rules = {
-  type: [{ required: true, message: '请选择收支类型' }],
-  amount: [{ required: true, message: '请输入金额' }],
-  transaction_date: [{ required: true, message: '请选择日期' }]
+  type: [
+    { required: true, message: '请选择收支类型', trigger: 'change' }
+  ],
+  amount: [
+    { required: true, message: '请输入金额', trigger: 'blur' },
+    { type: 'number', min: 0.01, message: '金额必须大于0', trigger: 'blur' }
+  ],
+  transaction_date: [
+    { required: true, message: '请选择日期', trigger: 'change' }
+  ]
 };
 
 // 计算总金额
@@ -412,5 +421,9 @@ onMounted(() => {
 
 .form-select {
   width: 100%;
+}
+
+:deep(.el-input-number .el-input__wrapper) {
+  padding-right: 8px;  /* 调整右侧内边距 */
 }
 </style> 

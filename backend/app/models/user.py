@@ -6,6 +6,19 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 
+# 在 User 类前添加权限常量定义
+VALID_PERMISSIONS = [
+    'dashboard',
+    'stock_order',
+    'inventory',
+    'finance',
+    'other_transactions',
+    'transactions',
+    'performance',
+    'analysis',
+    'profit_statement'
+]
+
 class User(Base):
     __tablename__ = "users"
     

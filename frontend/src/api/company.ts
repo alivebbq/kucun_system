@@ -58,13 +58,6 @@ export const createPayment = async (data: {
     }
 };
 
-// 获取收付款记录
-export const getPayments = (companyId?: number) => {
-    return api.get<Payment[]>('/api/v1/payments/', {
-        params: { company_id: companyId }
-    });
-};
-
 // 获取公司交易记录
 export const getCompanyTransactions = (companyId: number) => {
     return api.get<CompanyTransaction[]>(`/api/v1/companies/${companyId}/transactions`);
