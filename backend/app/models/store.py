@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.session import Base
+from app.models.finance import OtherTransaction
 
 class Store(Base):
     __tablename__ = "stores"
@@ -18,4 +19,5 @@ class Store(Base):
     operation_logs = relationship("OperationLog", back_populates="store")
     companies = relationship("Company", back_populates="store")
     payments = relationship("Payment", back_populates="store")
-    stock_orders = relationship("StockOrder", back_populates="store") 
+    stock_orders = relationship("StockOrder", back_populates="store")
+    other_transactions = relationship("OtherTransaction", back_populates="store") 

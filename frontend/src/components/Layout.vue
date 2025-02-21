@@ -35,10 +35,62 @@ import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useUserStore } from '../stores/user';
 import { ElMessageBox } from 'element-plus';
+import {
+  Odometer,
+  List,
+  Money,
+  Tickets,
+  DataLine,
+  TrendCharts,
+  User,
+  Document
+} from '@element-plus/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
+
+// 修改菜单配置
+const menuItems = computed(() => {
+  return [
+    {
+      path: 'dashboard',
+      meta: { title: '仪表盘', icon: Odometer }
+    },
+    {
+      path: 'inventory',
+      meta: { title: '商品管理', icon: List }
+    },
+    {
+      path: 'stock-orders',
+      meta: { title: '出入库管理', icon: Tickets }
+    },
+    {
+      path: 'transactions',
+      meta: { title: '商品记录', icon: Tickets }
+    },
+    {
+      path: 'performance',
+      meta: { title: '业绩统计', icon: DataLine }
+    },
+    {
+      path: 'analysis',
+      meta: { title: '商品分析', icon: TrendCharts }
+    },
+    {
+      path: 'finance/transactions',
+      meta: { title: '其他收支', icon: Money }
+    },
+    {
+      path: 'users',
+      meta: { title: '员工管理', icon: User, requiresOwner: true }
+    },
+    {
+      path: 'logs',
+      meta: { title: '操作日志', icon: Document, requiresOwner: true }
+    }
+  ];
+});
 
 // 根据权限过滤菜单项
 const filteredMenuItems = computed(() => {

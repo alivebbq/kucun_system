@@ -141,7 +141,7 @@ class StockOrderService:
         
         # 添加订单明细
         for item in order.items:
-            # 验证商品是否存在
+            # 验证商品是否存在且未被禁用
             inventory = db.query(Inventory).filter(
                 Inventory.id == item.inventory_id,
                 Inventory.store_id == store_id
@@ -151,6 +151,13 @@ class StockOrderService:
                 raise HTTPException(
                     status_code=400,
                     detail=f"商品ID {item.inventory_id} 不存在"
+                )
+            
+            # 添加商品状态验证
+            if not inventory.is_active:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"商品 {inventory.name} 已被禁用，无法{order.type == 'in' and '入库' or '出库'}"
                 )
             
             # 创建订单明细
@@ -194,6 +201,13 @@ class StockOrderService:
             # 更新库存
             for item in order.items:
                 inventory = item.inventory
+                
+                # 添加商品状态验证
+                if not inventory.is_active:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"商品 {inventory.name} 已被禁用，无法{order.type == 'in' and '入库' or '出库'}"
+                    )
                 
                 # 检查库存
                 if order.type == "out" and inventory.stock < item.quantity:
@@ -275,6 +289,25 @@ class StockOrderService:
         
         if not order:
             raise ValueError("订单不存在")
+        
+        # 添加商品状态验证
+        for item_data in data.items:
+            inventory = db.query(Inventory).filter(
+                Inventory.id == item_data.inventory_id,
+                Inventory.store_id == store_id
+            ).first()
+            
+            if not inventory:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"商品ID {item_data.inventory_id} 不存在"
+                )
+            
+            if not inventory.is_active:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"商品 {inventory.name} 已被禁用，无法{order.type == 'in' and '入库' or '出库'}"
+                )
         
         # 更新基本信息
         order.company_id = data.company_id

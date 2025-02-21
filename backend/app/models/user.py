@@ -27,6 +27,7 @@ class User(Base):
     operation_logs = relationship("OperationLog", back_populates="operator")
     payments = relationship("Payment", back_populates="operator")
     stock_orders = relationship("StockOrder", back_populates="operator")
+    other_transactions = relationship("OtherTransaction", back_populates="operator")
 
     @property
     def permission_list(self):

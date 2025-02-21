@@ -84,7 +84,7 @@ const routes = [
                 name: 'Transactions',
                 component: () => import('../views/Transactions.vue'),
                 meta: {
-                    title: '交易记录',
+                    title: '商品记录',
                     icon: 'Tickets',
                     requiresAuth: true,
                     permission: 'transactions'
@@ -151,6 +151,16 @@ const routes = [
                     requiresAuth: true,
                     title: '出入库单详情',
                     hidden: true
+                }
+            },
+            {
+                path: 'finance/transactions',
+                name: 'OtherTransactions',
+                component: () => import('../views/finance/OtherTransactions.vue'),
+                meta: {
+                    title: '其他收支',
+                    icon: 'Money',
+                    requiresAuth: true
                 }
             }
         ]

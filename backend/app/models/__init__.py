@@ -1,17 +1,20 @@
-from .store import Store  # 首先导入 Store 模型
-from .company import Company, Payment  # 导入 Company 模型
-from .inventory import Inventory, Transaction, StockOrder, StockOrderItem  # 再导入 inventory 模型
-from .user import User  # 最后导入 User 模型
-from .log import OperationLog  # 再导入 log 模型
-# 确保所有模型都被正确加载
+from .user import User
+from .store import Store
+from .inventory import Inventory, Transaction, StockOrder, StockOrderItem
+from .company import Company, Payment
+from .log import OperationLog
+from .finance import OtherTransaction  # 添加这行
+
+# 为了避免循环导入，我们在这里导入所有模型
 __all__ = [
-    'User', 
-    'Store', 
-    'Inventory', 
-    'Transaction', 
-    'OperationLog', 
-    'Company',
-    'Payment',
-    'StockOrder', 
-    'StockOrderItem'
+    "User",
+    "Store",
+    "Inventory",
+    "Transaction",
+    "Company",
+    "Payment",
+    "StockOrder",
+    "StockOrderItem",
+    "OperationLog",
+    "OtherTransaction"
 ] 
