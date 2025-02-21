@@ -231,7 +231,8 @@ async def get_performance_stats(
 @router.get("/analysis/{barcode}", response_model=ProductAnalysis)
 def get_product_analysis(
     barcode: str,
-    months: int = Query(1, ge=1, le=12),  # 默认1个月，最多12个月
+    start_date: str,
+    end_date: str,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
@@ -244,10 +245,14 @@ def get_product_analysis(
     if not db_inventory:
         raise HTTPException(status_code=404, detail="商品不存在")
     
+    start = datetime.fromisoformat(start_date)
+    end = datetime.fromisoformat(end_date)
+    
     return InventoryService.get_product_analysis(
         db, 
-        barcode, 
-        months,
+        barcode,
+        start,
+        end,
         current_user.store_id
     )
 

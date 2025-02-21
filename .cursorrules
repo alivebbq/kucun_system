@@ -51,7 +51,6 @@ backend/
 ├── app/
 │ ├── api/ # API路由
 │ ├── core/ # 核心配置
-│ ├── crud/ # 数据库操作
 │ ├── db/ # 数据库模型
 │ ├── schemas/ # Pydantic模型
 │ └── services/ # 业务逻辑

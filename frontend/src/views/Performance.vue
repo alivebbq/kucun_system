@@ -4,144 +4,170 @@
     <el-card class="date-picker">
       <el-date-picker
         v-model="dateRange"
-        type="monthrange"
+        type="daterange"
         range-separator="至"
-        start-placeholder="开始月份"
-        end-placeholder="结束月份"
-        :default-value="defaultDateRange"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        :shortcuts="dateShortcuts"
         value-format="YYYY-MM-DD"
+        :clearable="false"
         @change="handleDateChange"
       />
     </el-card>
 
-    <!-- 销售汇总 -->
-    <el-card class="summary">
-      <template #header>
-        <div class="card-header">
-          <span>销售汇总</span>
-        </div>
-      </template>
-      <el-row :gutter="20">
-        <el-col :span="5">
-          <div class="stat-item">
-            <div class="label">进货总额</div>
-            <div class="value">¥{{ formatNumber(stats.summary.total_purchase) }}</div>
+    <!-- 当有日期选择时才显示内容 -->
+    <template v-if="dateRange">
+      <!-- 销售汇总 -->
+      <el-card class="summary">
+        <template #header>
+          <div class="card-header">
+            <span>销售汇总</span>
           </div>
-        </el-col>
-        <el-col :span="5">
-          <div class="stat-item">
-            <div class="label">销售总额</div>
-            <div class="value">¥{{ formatNumber(stats.summary.total_sales) }}</div>
-          </div>
-        </el-col>
-        <el-col :span="5">
-          <div class="stat-item">
-            <div class="label">销售成本(先进先出法)</div>
-            <div class="value cost">¥{{ formatNumber(stats.summary.total_sales_cost) }}</div> 
-          </div>
-        </el-col>
-        <el-col :span="5">
-          <div class="stat-item">
-            <div class="label">总利润</div>
-            <div class="value profit">¥{{ formatNumber(stats.summary.total_profit) }}</div>
-          </div>
-        </el-col>
-        <el-col :span="4">
-          <div class="stat-item">
-            <div class="label">利润率</div>
-            <div class="value">{{ formatNumber(stats.summary.profit_rate) }}%</div>
-          </div>
-        </el-col>
-      </el-row>
-    </el-card>
+        </template>
+        <el-row :gutter="20">
+          <el-col :span="5">
+            <div class="stat-item">
+              <div class="label">进货总额</div>
+              <div class="value">¥{{ formatNumber(stats.summary.total_purchase) }}</div>
+            </div>
+          </el-col>
+          <el-col :span="5">
+            <div class="stat-item">
+              <div class="label">销售总额</div>
+              <div class="value">¥{{ formatNumber(stats.summary.total_sales) }}</div>
+            </div>
+          </el-col>
+          <el-col :span="5">
+            <div class="stat-item">
+              <div class="label">销售成本(先进先出法)</div>
+              <div class="value cost">¥{{ formatNumber(stats.summary.total_sales_cost) }}</div> 
+            </div>
+          </el-col>
+          <el-col :span="5">
+            <div class="stat-item">
+              <div class="label">总利润</div>
+              <div class="value profit">¥{{ formatNumber(stats.summary.total_profit) }}</div>
+            </div>
+          </el-col>
+          <el-col :span="4">
+            <div class="stat-item">
+              <div class="label">利润率</div>
+              <div class="value">{{ formatNumber(stats.summary.profit_rate) }}%</div>
+            </div>
+          </el-col>
+        </el-row>
+      </el-card>
 
-    <!-- 利润排名 -->
-    <el-card class="rankings">
-      <template #header>
-        <div class="card-header">
-          <span>商品利润排名</span>
-          <el-radio-group v-model="profitSortBy" size="small" @change="handleProfitSortChange">
-            <el-radio-button label="profit">按利润</el-radio-button>
-            <el-radio-button label="rate">按利润率</el-radio-button>
-          </el-radio-group>
+      <!-- 利润排名 -->
+      <el-card class="rankings">
+        <template #header>
+          <div class="card-header">
+            <span>商品利润排名</span>
+            <el-radio-group v-model="profitSortBy" size="small" @change="handleProfitSortChange">
+              <el-radio-button label="profit">按利润</el-radio-button>
+              <el-radio-button label="rate">按利润率</el-radio-button>
+            </el-radio-group>
+          </div>
+        </template>
+        <el-table :data="currentProfitRankings" style="width: 100%">
+          <el-table-column type="index" label="排名" width="80" />
+          <el-table-column prop="barcode" label="条形码" width="150" />
+          <el-table-column prop="name" label="商品名称" />
+          <el-table-column
+            prop="total_cost"
+            label="总成本"
+            width="120"
+            align="right"
+          >
+            <template #default="{ row }">
+              ¥{{ formatNumber(row.total_cost) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="total_revenue"
+            label="总收入"
+            width="120"
+            align="right"
+          >
+            <template #default="{ row }">
+              ¥{{ formatNumber(row.total_revenue) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="profit"
+            label="利润"
+            width="120"
+            align="right"
+          >
+            <template #default="{ row }">
+              ¥{{ formatNumber(row.profit) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="profit_rate"
+            label="利润率"
+            width="100"
+            align="right"
+          >
+            <template #default="{ row }">
+              {{ formatNumber(row.profit_rate) }}%
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="pagination-container">
+          <el-pagination
+            v-model:current-page="profitCurrentPage"
+            v-model:page-size="profitPageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="sortedProfitRankings.length"
+            layout="total, sizes, prev, pager, next"
+            @size-change="handleProfitSizeChange"
+            @current-change="handleProfitPageChange"
+          />
         </div>
-      </template>
-      <el-table :data="sortedProfitRankings" style="width: 100%">
-        <el-table-column type="index" label="排名" width="80" />
-        <el-table-column prop="barcode" label="条形码" width="150" />
-        <el-table-column prop="name" label="商品名称" />
-        <el-table-column
-          prop="total_cost"
-          label="总成本"
-          width="120"
-          align="right"
-        >
-          <template #default="{ row }">
-            ¥{{ formatNumber(row.total_cost) }}
-          </template>
-        </el-table-column>
-        <el-table-column
-          prop="total_revenue"
-          label="总收入"
-          width="120"
-          align="right"
-        >
-          <template #default="{ row }">
-            ¥{{ formatNumber(row.total_revenue) }}
-          </template>
-        </el-table-column>
-        <el-table-column
-          prop="profit"
-          label="利润"
-          width="120"
-          align="right"
-        >
-          <template #default="{ row }">
-            ¥{{ formatNumber(row.profit) }}
-          </template>
-        </el-table-column>
-        <el-table-column
-          prop="profit_rate"
-          label="利润率"
-          width="100"
-          align="right"
-        >
-          <template #default="{ row }">
-            {{ formatNumber(row.profit_rate) }}%
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+      </el-card>
 
-    <!-- 销售额排名 -->
-    <el-card class="rankings">
-      <template #header>
-        <div class="card-header">
-          <span>商品销售排名</span>
+      <!-- 销售额排名 -->
+      <el-card class="rankings">
+        <template #header>
+          <div class="card-header">
+            <span>商品销售排名</span>
+          </div>
+        </template>
+        <el-table :data="currentSalesRankings" style="width: 100%">
+          <el-table-column type="index" label="排名" width="80" />
+          <el-table-column prop="barcode" label="条形码" width="150" />
+          <el-table-column prop="name" label="商品名称" />
+          <el-table-column
+            prop="quantity"
+            label="销售数量"
+            width="120"
+            align="right"
+          />
+          <el-table-column
+            prop="revenue"
+            label="销售额"
+            width="120"
+            align="right"
+          >
+            <template #default="{ row }">
+              ¥{{ formatNumber(row.revenue) }}
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="pagination-container">
+          <el-pagination
+            v-model:current-page="salesCurrentPage"
+            v-model:page-size="salesPageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="stats.sales_rankings.length"
+            layout="total, sizes, prev, pager, next"
+            @size-change="handleSalesSizeChange"
+            @current-change="handleSalesPageChange"
+          />
         </div>
-      </template>
-      <el-table :data="stats.sales_rankings" style="width: 100%">
-        <el-table-column type="index" label="排名" width="80" />
-        <el-table-column prop="barcode" label="条形码" width="150" />
-        <el-table-column prop="name" label="商品名称" />
-        <el-table-column
-          prop="quantity"
-          label="销售数量"
-          width="120"
-          align="right"
-        />
-        <el-table-column
-          prop="revenue"
-          label="销售额"
-          width="120"
-          align="right"
-        >
-          <template #default="{ row }">
-            ¥{{ formatNumber(row.revenue) }}
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+      </el-card>
+    </template>
   </div>
 </template>
 
@@ -162,12 +188,8 @@ const stats = ref<PerformanceStats>({
   }
 });
 
-// 默认日期范围（当前月份）
-const defaultDateRange = [
-  new Date().setDate(1),
-  new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0)
-];
-const dateRange = ref(defaultDateRange);
+// 移除默认日期范围
+const dateRange = ref<[Date, Date] | null>(null);
 
 // 排序方式
 const profitSortBy = ref<'profit' | 'rate'>('profit');
@@ -198,17 +220,93 @@ const formatNumber = (num: number) => {
   });
 };
 
-// 加载数据
+// 格式化日期范围显示
+const formatDateRange = (range: [Date, Date] | null) => {
+  if (!range) return '';
+  const [start, end] = range;
+  const formatDate = (date: Date | number) => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  return `${formatDate(start)} 至 ${formatDate(end)}`;
+};
+
+// 添加日期快捷选项
+const dateShortcuts = [
+  {
+    text: '最近一周',
+    value: () => {
+      const end = new Date();
+      const start = new Date();
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 7);
+      return [start, end];
+    },
+  },
+  {
+    text: '本月',
+    value: () => {
+      const end = new Date();
+      const start = new Date(end.getFullYear(), end.getMonth(), 1);
+      return [start, end];
+    },
+  },
+  {
+    text: '最近一月',
+    value: () => {
+      const end = new Date();
+      const start = new Date();
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 30);
+      return [start, end];
+    },
+  },
+  {
+    text: '最近三月',
+    value: () => {
+      const end = new Date();
+      const start = new Date();
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 90);
+      return [start, end];
+    },
+  },
+  {
+    text: '最近半年',
+    value: () => {
+      const end = new Date();
+      const start = new Date();
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 180);
+      return [start, end];
+    },
+  },
+  {
+    text: '最近一年',
+    value: () => {
+      const end = new Date();
+      const start = new Date();
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 365);
+      return [start, end];
+    },
+  }
+];
+
+// 修改加载数据的方法
 const loadStats = async () => {
+  if (!dateRange.value) return;  // 如果没有选择日期，不加载数据
+  
   try {
-    const [start_date, end_date] = dateRange.value;
-    console.log('Date range:', { start_date, end_date });
+    const [start, end] = dateRange.value;
+    
+    const formatForApi = (date: Date | number) => {
+      const d = new Date(date);
+      return d.toISOString().split('T')[0];
+    };
     
     const response = await getPerformanceStats({
-      start_date: start_date ? `${new Date(start_date).toISOString().split('T')[0]}T00:00:00` : undefined,
-      end_date: end_date ? `${new Date(end_date).toISOString().split('T')[0]}T23:59:59` : undefined
+      start_date: `${formatForApi(start)}T00:00:00`,
+      end_date: `${formatForApi(end)}T23:59:59`
     });
-    console.log('Performance stats response:', response);
     
     stats.value = response;
   } catch (error) {
@@ -221,8 +319,48 @@ const handleDateChange = () => {
   loadStats();
 };
 
+// 添加分页相关的响应式变量
+const profitCurrentPage = ref(1);
+const profitPageSize = ref(10);
+const salesCurrentPage = ref(1);
+const salesPageSize = ref(10);
+
+// 计算当前页的利润排名数据
+const currentProfitRankings = computed(() => {
+  const start = (profitCurrentPage.value - 1) * profitPageSize.value;
+  const end = start + profitPageSize.value;
+  return sortedProfitRankings.value.slice(start, end);
+});
+
+// 计算当前页的销售排名数据
+const currentSalesRankings = computed(() => {
+  const start = (salesCurrentPage.value - 1) * salesPageSize.value;
+  const end = start + salesPageSize.value;
+  return stats.value.sales_rankings.slice(start, end);
+});
+
+// 处理利润排名分页
+const handleProfitSizeChange = (size: number) => {
+  profitPageSize.value = size;
+  profitCurrentPage.value = 1;
+};
+
+const handleProfitPageChange = (page: number) => {
+  profitCurrentPage.value = page;
+};
+
+// 处理销售排名分页
+const handleSalesSizeChange = (size: number) => {
+  salesPageSize.value = size;
+  salesCurrentPage.value = 1;
+};
+
+const handleSalesPageChange = (page: number) => {
+  salesCurrentPage.value = page;
+};
+
 onMounted(() => {
-  loadStats();
+  // 不再自动加载数据
 });
 </script>
 
@@ -238,9 +376,22 @@ onMounted(() => {
 
 .date-picker {
   display: flex;
-  justify-content: flex-end;
-  padding: 10px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
   background-color: #fff;
+  
+  .date-info {
+    .date-label {
+      color: #606266;
+      margin-right: 8px;
+    }
+    
+    .date-value {
+      font-weight: bold;
+      color: #409EFF;
+    }
+  }
 }
 
 .summary {
@@ -321,5 +472,11 @@ onMounted(() => {
 
 .card-header :deep(.el-radio-button__inner) {
   padding: 5px 15px;
+}
+
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style> 

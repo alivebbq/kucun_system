@@ -521,8 +521,8 @@ class InventoryService:
         profit_rate = float(total_profit / total_sales_cost * 100) if total_sales_cost > 0 else 0
 
         return {
-            "profit_rankings": profit_rankings[:10],  # 只返回前10名
-            "sales_rankings": sales_rankings[:10],    # 只返回前10名
+            "profit_rankings": profit_rankings,
+            "sales_rankings": sales_rankings,
             "summary": {
                 "total_purchase": float(total_purchase),
                 "total_sales": float(total_sales),
@@ -571,21 +571,20 @@ class InventoryService:
     def get_product_analysis(
         db: Session,
         barcode: str,
-        months: int,
+        start_date: datetime,
+        end_date: datetime,
         store_id: int
     ) -> dict:
+        """获取商品分析数据"""
         # 设置时间范围
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=months * 30)
-        
-        # 修改所有查询，添加 store_id 过滤
         price_trends = []
         sales_analysis = []
         
         # 计算每天的间隔
         days_per_point = 1  # 默认每天一个点
-        if months > 1:
-            days_per_point = (months * 30) // 30  # 确保总共有30个数据点
+        total_days = (end_date - start_date).days
+        if total_days > 30:
+            days_per_point = total_days // 30  # 确保总共有30个数据点
         
         # 生成日期点
         current_date = end_date

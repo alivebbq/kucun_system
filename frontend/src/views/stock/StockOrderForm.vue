@@ -54,14 +54,19 @@
         <el-table :data="form.items" border>
           <el-table-column label="商品" width="500">
             <template #default="{ row, $index }">
-              <el-autocomplete
-                v-model="row.searchText"
-                :fetch-suggestions="querySearch"
-                placeholder="输入商品名称或条形码"
-                :trigger-on-focus="false"
-                @select="(item) => handleSelect(item, $index)"
-                class="full-width"
-              />
+              <div class="product-select">
+                <el-autocomplete
+                  v-model="row.searchText"
+                  :fetch-suggestions="querySearch"
+                  placeholder="输入商品名称或条形码"
+                  :trigger-on-focus="false"
+                  @select="(item) => handleSelect(item, $index)"
+                  class="product-input"
+                />
+                <el-button @click="() => showProductList($index)">
+                  <el-icon><List /></el-icon>
+                </el-button>
+              </div>
             </template>
           </el-table-column>
           <el-table-column prop="barcode" label="条形码" width="150" />
@@ -132,6 +137,45 @@
         </div>
       </div>
     </div>
+
+    <!-- 添加商品列表对话框 -->
+    <el-dialog
+      v-model="productListVisible"
+      title="选择商品"
+      width="80%"
+      class="custom-dialog"
+    >
+      <el-table
+        :data="productList"
+        style="width: 100%"
+        height="500px"
+        @row-click="handleProductSelect"
+      >
+        <el-table-column prop="barcode" label="条形码" width="150" />
+        <el-table-column prop="name" label="商品名称" />
+        <el-table-column prop="unit" label="单位" width="100" />
+        <el-table-column prop="stock" label="库存" width="100" align="right" />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.is_active ? 'success' : 'danger'">
+              {{ row.is_active ? '启用' : '禁用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+      <!-- 添加分页 -->
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="total"
+          layout="total, sizes, prev, pager, next"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -139,13 +183,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, List } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
 import type { CreateStockOrderRequest } from '@/types/inventory'
 import { createStockOrder } from '@/api/stockOrder'
-import { searchInventory, getInventory } from '@/api/inventory'
+import { searchInventory, getInventory, getInventoryList } from '@/api/inventory'
 import { getCompanies } from '@/api/company'
 import { CompanyType } from '@/types/company'
+import type { Inventory } from '@/types/inventory'
 
 const route = useRoute()
 const router = useRouter()
@@ -196,20 +241,69 @@ const querySearch = async (queryString: string) => {
     return response.map(item => ({
       value: item.name,
       ...item
-    }))
+    })).filter(item => item.is_active)
   } catch (error) {
     return []
   }
 }
 
+// 商品列表相关
+const productListVisible = ref(false)
+const productList = ref<Inventory[]>([])
+const currentPage = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
+const currentSelectIndex = ref<number>(-1)
+
+// 显示商品列表
+const showProductList = async (index: number) => {
+  currentSelectIndex.value = index
+  try {
+    const response = await getInventoryList({
+      page: currentPage.value,
+      page_size: pageSize.value
+    })
+    productList.value = response.items
+    total.value = response.total
+    productListVisible.value = true
+  } catch (error) {
+    ElMessage.error('加载商品列表失败')
+  }
+}
+
+// 处理页码变化
+const handleCurrentChange = (page: number) => {
+  currentPage.value = page
+  showProductList(currentSelectIndex.value)
+}
+
+// 处理每页数量变化
+const handleSizeChange = (size: number) => {
+  pageSize.value = size
+  currentPage.value = 1
+  showProductList(currentSelectIndex.value)
+}
+
+// 从列表选择商品
+const handleProductSelect = (row: Inventory) => {
+  handleSelect(row, currentSelectIndex.value)
+  productListVisible.value = false
+}
+
 // 选择商品
 const handleSelect = async (item: any, index: number) => {
+  // 先检查商品是否被禁用
+  if (!item.is_active) {
+    ElMessage.warning(`商品 ${item.name} 已被禁用，无法${type === 'in' ? '入库' : '出库'}`);
+    return;
+  }
+
   // 如果是出库单，先获取商品详情检查库存
   if (type === 'out') {
     try {
       if (item.stock <= 0) {
-        ElMessage.warning(`商品 ${item.name} 当前库存为0，无法出库`)
-        return
+        ElMessage.warning(`商品 ${item.name} 当前库存为0，无法出库`);
+        return;
       }
       // 保存库存数量，用于后续校验
       form.value.items[index] = {
@@ -219,10 +313,10 @@ const handleSelect = async (item: any, index: number) => {
         searchText: item.name,
         price: item.last_price || 0,
         maxQuantity: item.stock
-      }
+      };
     } catch (error) {
-      ElMessage.error('获取商品库存信息失败')
-      return
+      ElMessage.error('获取商品库存信息失败');
+      return;
     }
   } else {
     // 入库单不需要检查库存
@@ -232,7 +326,7 @@ const handleSelect = async (item: any, index: number) => {
       barcode: item.barcode,
       searchText: item.name,
       price: 0
-    }
+    };
   }
 }
 
@@ -415,5 +509,28 @@ onMounted(() => {
   .el-input-number {
     width: 100%;
   }
+}
+
+.product-select {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  
+  .product-input {
+    flex: 1;
+  }
+}
+
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+:deep(.el-dialog__body) {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 </style> 

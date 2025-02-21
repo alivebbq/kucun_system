@@ -36,16 +36,16 @@
                     </el-form-item>
                     <!-- 修改时间范围的选择方式 -->
                     <el-form-item label="时间范围">
-                        <el-select 
-                            v-model="timeRange" 
-                            class="time-range"
-                            @change="handleTimeRangeChange"
-                        >
-                            <el-option label="最近一个月" value="1" />
-                            <el-option label="最近一季度" value="3" />
-                            <el-option label="最近半年" value="6" />
-                            <el-option label="最近一年" value="12" />
-                        </el-select>
+                        <el-date-picker
+                            v-model="dateRange"
+                            type="daterange"
+                            range-separator="至"
+                            start-placeholder="开始日期"
+                            end-placeholder="结束日期"
+                            :shortcuts="dateShortcuts"
+                            value-format="YYYY-MM-DD"
+                            @change="handleDateChange"
+                        />
                     </el-form-item>
                 </el-form>
             </div>
@@ -77,6 +77,18 @@
                     </template>
                 </el-table-column>
             </el-table>
+            <!-- 添加分页组件 -->
+            <div class="pagination-container">
+                <el-pagination
+                    v-model:current-page="currentPage"
+                    v-model:page-size="pageSize"
+                    :page-sizes="[10, 20, 50, 100]"
+                    :total="total"
+                    layout="total, sizes, prev, pager, next"
+                    @size-change="handleSizeChange"
+                    @current-change="handleCurrentChange"
+                />
+            </div>
         </el-dialog>
 
         <!-- 保留原有的分析图表内容 -->
@@ -109,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Search, List } from '@element-plus/icons-vue';
 import VChart from 'vue-echarts';
@@ -119,11 +131,11 @@ import {
     TitleComponent,
     TooltipComponent,
     LegendComponent,
-    GridComponent
+    GridComponent,
+    DataZoomComponent
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import { getInventoryByBarcode, getProductAnalysis, searchInventory, getInventoryList, type Inventory } from '../api/inventory';
-import type { ProductAnalysis } from '../api/inventory';
 
 // 注册 ECharts 组件
 use([
@@ -133,15 +145,56 @@ use([
     TitleComponent,
     TooltipComponent,
     LegendComponent,
-    GridComponent
+    GridComponent,
+    DataZoomComponent
 ]);
 
 const searchQuery = ref('');
 const productListVisible = ref(false);
 const productList = ref<Inventory[]>([]);
 const searchBarcode = ref('');
-const timeRange = ref('1');
+const dateRange = ref<[Date, Date] | null>(null);
 const currentProduct = ref<Inventory | null>(null);
+
+// 添加日期快捷选项
+const dateShortcuts = [
+    {
+        text: '最近一月',
+        value: () => {
+            const end = new Date();
+            const start = new Date();
+            start.setTime(start.getTime() - 3600 * 1000 * 24 * 30);
+            return [start, end];
+        },
+    },
+    {
+        text: '最近一季度',
+        value: () => {
+            const end = new Date();
+            const start = new Date();
+            start.setTime(start.getTime() - 3600 * 1000 * 24 * 90);
+            return [start, end];
+        },
+    },
+    {
+        text: '最近半年',
+        value: () => {
+            const end = new Date();
+            const start = new Date();
+            start.setTime(start.getTime() - 3600 * 1000 * 24 * 180);
+            return [start, end];
+        },
+    },
+    {
+        text: '最近一年',
+        value: () => {
+            const end = new Date();
+            const start = new Date();
+            start.setTime(start.getTime() - 3600 * 1000 * 24 * 365);
+            return [start, end];
+        },
+    }
+];
 
 // 初始化数据结构
 const initChartData = () => ({
@@ -396,8 +449,7 @@ const handleSearch = async () => {
 
         // 获取新商品数据
         const response = await getInventoryByBarcode(searchBarcode.value);
-        // 直接使用 response，不需要 .data
-        currentProduct.value = response;
+        currentProduct.value = response; 
         
         if (currentProduct.value) {
             await loadAnalysisData();
@@ -410,16 +462,21 @@ const handleSearch = async () => {
 
 // 修改数据加载函数
 const loadAnalysisData = async () => {
-    if (!currentProduct.value) return;
+    if (!currentProduct.value || !dateRange.value) return;
 
     try {
-        const months = parseInt(timeRange.value);
-        const response = await getProductAnalysis(currentProduct.value.barcode, months);
-        const data = response;
+        const [start, end] = dateRange.value;
+        const response = await getProductAnalysis(
+            currentProduct.value.barcode,
+            {
+                start_date: start,
+                end_date: end
+            }
+        );
 
         // 反转数据，使最新的数据显示在右边
-        const priceTrends = [...data.price_trends].reverse();
-        const salesAnalysis = [...data.sales_analysis].reverse();
+        const priceTrends = [...response.price_trends].reverse();
+        const salesAnalysis = [...response.sales_analysis].reverse();
 
         // 找到第一次入库和出库的日期
         let firstInDate = null;
@@ -500,8 +557,8 @@ const loadAnalysisData = async () => {
     }
 };
 
-// 处理时间范围变化
-const handleTimeRangeChange = () => {
+// 处理日期变化
+const handleDateChange = () => {
     if (currentProduct.value) {
         loadAnalysisData();
     }
@@ -516,7 +573,6 @@ const querySearch = async (queryString: string, cb: (arg: any[]) => void) => {
 
     try {
         const response = await searchInventory(queryString);
-        // 直接使用 response，不需要 .data
         const suggestions = response.map(item => ({
             value: item.barcode,
             label: `${item.name} (${item.barcode})`,
@@ -535,16 +591,37 @@ const handleSelect = (item: Inventory) => {
     handleSearch();
 };
 
-// 显示商品列表
+// 添加分页相关的响应式变量
+const currentPage = ref(1);
+const pageSize = ref(20);
+const total = ref(0);
+
+// 修改显示商品列表的方法
 const showProductList = async () => {
     try {
-        const response = await getInventoryList();
-        // 直接使用 response，不需要 .data
-        productList.value = response;
+        const response = await getInventoryList({
+            page: currentPage.value,
+            page_size: pageSize.value
+        });
+        productList.value = response.items;
+        total.value = response.total;
         productListVisible.value = true;
     } catch (error) {
         ElMessage.error('加载商品列表失败');
     }
+};
+
+// 处理页码变化
+const handleCurrentChange = (page: number) => {
+    currentPage.value = page;
+    showProductList();
+};
+
+// 处理每页数量变化
+const handleSizeChange = (size: number) => {
+    pageSize.value = size;
+    currentPage.value = 1; // 重置到第一页
+    showProductList();
 };
 
 // 从列表选择商品
@@ -651,7 +728,21 @@ const handleProductSelect = (row: Inventory) => {
     align-items: center;
 }
 
-.time-range {
-    width: 140px;
+:deep(.el-date-editor) {
+    width: 360px;  /* 调整日期选择器宽度 */
+}
+
+.pagination-container {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* 调整对话框内容的布局 */
+:deep(.el-dialog__body) {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
 }
 </style>

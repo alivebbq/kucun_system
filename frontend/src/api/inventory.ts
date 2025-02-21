@@ -215,10 +215,14 @@ export interface ProductAnalysis {
 }
 
 // 商品分析 API
-export const getProductAnalysis = (barcode: string, months: number = 1) => {
-    return api.get<ProductAnalysis>(`/api/v1/analysis/${barcode}`, {
-        params: { months }
-    });
+export const getProductAnalysis = (
+    barcode: string,
+    params: {
+        start_date: string;
+        end_date: string;
+    }
+) => {
+    return api.get<ProductAnalysis>(`/api/v1/analysis/${barcode}`, { params });
 };
 
 // 切换商品状态

@@ -106,20 +106,24 @@
         <el-table :data="editForm.items" border>
           <el-table-column label="商品" width="300">
             <template #default="{ row, $index }">
-              <el-autocomplete
-                v-if="order?.status === 'draft' && isEditing"
-                v-model="row.searchText"
-                :fetch-suggestions="querySearch"
-                placeholder="输入商品名称或条形码"
-                :trigger-on-focus="false"
-                @select="(item) => handleSelect(item, $index)"
-                class="full-width"
-              >
-                <template #default="{ item }">
-                  <div>{{ item.name }}</div>
-                  <small style="color: #999">{{ item.barcode }}</small>
-                </template>
-              </el-autocomplete>
+              <div v-if="order?.status === 'draft' && isEditing" class="product-select">
+                <el-autocomplete
+                  v-model="row.searchText"
+                  :fetch-suggestions="querySearch"
+                  placeholder="输入商品名称或条形码"
+                  :trigger-on-focus="false"
+                  @select="(item) => handleSelect(item, $index)"
+                  class="product-input"
+                >
+                  <template #default="{ item }">
+                    <div>{{ item.name }}</div>
+                    <small style="color: #999">{{ item.barcode }}</small>
+                  </template>
+                </el-autocomplete>
+                <el-button @click="() => showProductList($index)">
+                  <el-icon><List /></el-icon>
+                </el-button>
+              </div>
               <span v-else>{{ getInventoryName(row.inventory_id) }}</span>
             </template>
           </el-table-column>
@@ -226,6 +230,45 @@
           </el-button>
         </template>
       </div>
+
+      <!-- 添加商品列表对话框 -->
+      <el-dialog
+        v-model="productListVisible"
+        title="选择商品"
+        width="80%"
+        class="custom-dialog"
+      >
+        <el-table
+          :data="productList"
+          style="width: 100%"
+          height="500px"
+          @row-click="handleProductSelect"
+        >
+          <el-table-column prop="barcode" label="条形码" width="150" />
+          <el-table-column prop="name" label="商品名称" />
+          <el-table-column prop="unit" label="单位" width="100" />
+          <el-table-column prop="stock" label="库存" width="100" align="right" />
+          <el-table-column label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.is_active ? 'success' : 'danger'">
+                {{ row.is_active ? '启用' : '禁用' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+        <!-- 添加分页 -->
+        <div class="pagination-container">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="total"
+            layout="total, sizes, prev, pager, next"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
+        </div>
+      </el-dialog>
     </div>
   </div>
 </template>
@@ -234,11 +277,11 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Printer, Plus } from '@element-plus/icons-vue'
+import { Printer, Plus, List } from '@element-plus/icons-vue'
 import { formatDateTime, formatDateTimeMinute } from '@/utils/format'
 import type { StockOrder, StockOrderItem } from '@/types/inventory'
 import { getStockOrder, updateStockOrder, confirmStockOrder, cancelStockOrder } from '@/api/stockOrder'
-import { getInventory, searchInventory } from '@/api/inventory'
+import { getInventory, searchInventory, getInventoryList } from '@/api/inventory'
 import { getCompanies } from '@/api/company'
 import { CompanyType } from '@/types/company'
 
@@ -257,6 +300,14 @@ const editForm = ref({
 
 // 是否处于编辑模式
 const isEditing = ref(false)
+
+// 商品列表相关
+const productListVisible = ref(false);
+const productList = ref<Inventory[]>([]);
+const currentPage = ref(1);
+const pageSize = ref(20);
+const total = ref(0);
+const currentSelectIndex = ref<number>(-1);
 
 // 获取订单详情
 const loadOrder = async () => {
@@ -354,7 +405,7 @@ const querySearch = async (queryString: string) => {
     return response.map(item => ({
       value: item.name,
       ...item
-    }))
+    })).filter(item => item.is_active)
   } catch (error) {
     return []
   }
@@ -362,11 +413,17 @@ const querySearch = async (queryString: string) => {
 
 // 选择商品
 const handleSelect = async (item: any, index: number) => {
+  // 先检查商品是否被禁用
+  if (!item.is_active) {
+    ElMessage.warning(`商品 ${item.name} 已被禁用，无法${order.value?.type === 'in' ? '入库' : '出库'}`);
+    return;
+  }
+
   if (order.value?.type === 'out') {
     try {
       if (item.stock <= 0) {
-        ElMessage.warning(`商品 ${item.name} 当前库存为0，无法出库`)
-        return
+        ElMessage.warning(`商品 ${item.name} 当前库存为0，无法出库`);
+        return;
       }
       editForm.value.items[index] = {
         ...editForm.value.items[index],
@@ -377,8 +434,8 @@ const handleSelect = async (item: any, index: number) => {
         maxQuantity: item.stock  // 使用搜索结果中的库存数量
       }
     } catch (error) {
-      ElMessage.error('获取商品库存信息失败')
-      return
+      ElMessage.error('获取商品库存信息失败');
+      return;
     }
   } else {
     editForm.value.items[index] = {
@@ -387,7 +444,7 @@ const handleSelect = async (item: any, index: number) => {
       barcode: item.barcode,
       searchText: item.name,
       price: 0
-    }
+    };
   }
 }
 
@@ -762,6 +819,41 @@ const handlePrint = () => {
   printWindow.document.close()
 }
 
+// 显示商品列表
+const showProductList = async (index: number) => {
+  currentSelectIndex.value = index;
+  try {
+    const response = await getInventoryList({
+      page: currentPage.value,
+      page_size: pageSize.value
+    });
+    productList.value = response.items;
+    total.value = response.total;
+    productListVisible.value = true;
+  } catch (error) {
+    ElMessage.error('加载商品列表失败');
+  }
+};
+
+// 处理页码变化
+const handleCurrentChange = (page: number) => {
+  currentPage.value = page;
+  showProductList(currentSelectIndex.value);
+};
+
+// 处理每页数量变化
+const handleSizeChange = (size: number) => {
+  pageSize.value = size;
+  currentPage.value = 1;
+  showProductList(currentSelectIndex.value);
+};
+
+// 从列表选择商品
+const handleProductSelect = (row: Inventory) => {
+  handleSelect(row, currentSelectIndex.value);
+  productListVisible.value = false;
+};
+
 onMounted(() => {
   loadOrder()
 })
@@ -896,5 +988,28 @@ onMounted(() => {
     text-align: center;
     min-height: 32px;
   }
+}
+
+.product-select {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  
+  .product-input {
+    flex: 1;
+  }
+}
+
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+:deep(.el-dialog__body) {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 </style> 
