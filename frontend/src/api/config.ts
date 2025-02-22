@@ -2,8 +2,10 @@ import axios from 'axios';
 import { useUserStore } from '../stores/user';
 import router from '../router';
 
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 export const api = axios.create({
-    baseURL: 'http://localhost:8000',  // 直接使用完整的后端地址
+    baseURL: BASE_URL,  // 直接使用完整的后端地址
     timeout: 10000,  // 增加超时时间
     withCredentials: true,
     headers: {

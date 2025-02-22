@@ -6,17 +6,18 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
-    POSTGRES_SERVER: str = "localhost"
-    POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "123456"
-    POSTGRES_DB: str = "kucun_system"
-    POSTGRES_PORT: str = "5432"
+    # 移除硬编码的默认值，完全依赖环境变量
+    POSTGRES_SERVER: str
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    POSTGRES_PORT: str
     
-    # 使用简单的连接字符串
-    DATABASE_URL: str = "postgresql://postgres:123456@localhost:5432/kucun_system"
+    # 数据库URL也从环境变量读取
+    DATABASE_URL: str
     
     # JWT配置
-    SECRET_KEY: str = "aabb00"
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24小时
     
@@ -37,6 +38,7 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        case_sensitive = True  # 区分大小写
         # 允许从环境变量加载额外的配置
         extra = "ignore"  # 添加这行来忽略额外的配置项
 
