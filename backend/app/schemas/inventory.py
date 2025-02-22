@@ -1,4 +1,4 @@
-from pydantic import BaseModel, constr, validator
+from pydantic import BaseModel, constr, validator, Field
 from decimal import Decimal
 from typing import Optional, List
 from datetime import datetime
@@ -10,24 +10,24 @@ class InventoryBase(BaseModel):
     name: constr(min_length=1, max_length=255)
     unit: Optional[str] = None
     warning_stock: Optional[int] = 10
+    remark: Optional[str] = None
 
 # 创建商品请求
 class InventoryCreate(InventoryBase):
     pass
 
 # 更新商品请求
-class InventoryUpdate(BaseModel):
-    name: Optional[str] = None
-    unit: Optional[str] = None
-    warning_stock: Optional[int] = None
+class InventoryUpdate(InventoryBase):
+    pass
 
 # 商品响应
 class Inventory(InventoryBase):
     id: int
-    stock: int
+    stock: Decimal
     is_active: bool = True
     created_at: datetime
     updated_at: Optional[datetime]
+    remark: Optional[str] = None
 
     class Config:
         from_attributes = True

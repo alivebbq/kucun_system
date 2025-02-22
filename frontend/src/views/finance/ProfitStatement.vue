@@ -11,6 +11,7 @@
             start-placeholder="开始日期"
             end-placeholder="结束日期"
             value-format="YYYY-MM-DD"
+            :shortcuts="dateShortcuts"
             @change="loadData"
           />
         </el-form-item>
@@ -238,6 +239,63 @@ const total = ref({
   other_expense: 0
 });
 
+// 日期快捷选项
+const dateShortcuts = [
+  {
+    text: '最近一周',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 7)
+      return [start, end]
+    }
+  },
+  {
+    text: '本月',
+    value: () => {
+      const end = new Date()
+      const start = new Date(end.getFullYear(), end.getMonth(), 1)
+      return [start, end]
+    }
+  },
+  {
+    text: '最近一月',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 30)
+      return [start, end]
+    }
+  },
+  {
+    text: '最近三月',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 90)
+      return [start, end]
+    }
+  },
+  {
+    text: '最近半年',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 180)
+      return [start, end]
+    }
+  },
+  {
+    text: '最近一年',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 365)
+      return [start, end]
+    }
+  }
+]
+
 // 处理 Tab 切换
 const handleTabChange = async (tab: string) => {
   currentPage.value = 1;
@@ -333,11 +391,11 @@ const loadData = async () => {
   }
 };
 
-// 设置默认时间范围为当月
+// 设置默认时间范围为最近30天
 onMounted(() => {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const start = new Date();
+  start.setTime(start.getTime() - 3600 * 1000 * 24 * 30);  // 30天前
+  const end = new Date();
   
   dateRange.value = [
     start.toISOString().split('T')[0],

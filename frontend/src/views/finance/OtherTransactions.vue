@@ -11,6 +11,7 @@
             start-placeholder="开始日期"
             end-placeholder="结束日期"
             value-format="YYYY-MM-DD"
+            :shortcuts="dateShortcuts"
             @change="handleSearch"
           />
         </el-form-item>
@@ -177,8 +178,74 @@ const expenseQueryParams = ref({
   type: 'expense' as TransactionType
 });
 
-// 日期范围
-const dateRange = ref<[string, string] | null>(null);
+// 日期快捷选项
+const dateShortcuts = [
+  {
+    text: '最近一周',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 7)
+      return [start, end]
+    }
+  },
+  {
+    text: '本月',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setDate(1)
+      return [start, end]
+    }
+  },
+  {
+    text: '最近一月',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 30)
+      return [start, end]
+    }
+  },
+  {
+    text: '最近三月',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 90)
+      return [start, end]
+    }
+  },
+  {
+    text: '最近半年',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 180)
+      return [start, end]
+    }
+  },
+  {
+    text: '最近一年',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 365)
+      return [start, end]
+    }
+  }
+]
+
+// 设置默认日期范围为最近30天
+const initDefaultDateRange = () => {
+  const end = new Date()
+  const start = new Date()
+  start.setTime(start.getTime() - 3600 * 1000 * 24 * 30)
+  return [formatDate(start), formatDate(end)]
+}
+
+// 修改日期范围的定义，设置默认值
+const dateRange = ref<[string, string]>(initDefaultDateRange())
 
 // 数据列表
 const incomeTransactions = ref<OtherTransaction[]>([]);

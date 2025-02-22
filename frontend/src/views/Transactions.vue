@@ -231,7 +231,16 @@ const dateShortcuts = [
     },
   },
   {
-    text: '最近一个月',
+    text: '本月',
+    value: () => {
+      const end = new Date();
+      const start = new Date();
+      start.setDate(1); // 设置为本月第一天
+      return [start, end];
+    },
+  },
+  {
+    text: '最近一月',
     value: () => {
       const end = new Date();
       const start = new Date();
@@ -240,11 +249,29 @@ const dateShortcuts = [
     },
   },
   {
-    text: '最近三个月',
+    text: '最近三月',
     value: () => {
       const end = new Date();
       const start = new Date();
       start.setTime(start.getTime() - 3600 * 1000 * 24 * 90);
+      return [start, end];
+    },
+  },
+  {
+    text: '最近半年',
+    value: () => {
+      const end = new Date();
+      const start = new Date();
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 180);
+      return [start, end];
+    },
+  },
+  {
+    text: '最近一年',
+    value: () => {
+      const end = new Date();
+      const start = new Date();
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 365);
       return [start, end];
     },
   },

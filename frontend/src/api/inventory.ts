@@ -11,6 +11,7 @@ export interface Inventory {
     is_active: boolean;
     created_at: string;
     updated_at: string;
+    remark?: string;
 }
 
 export interface Transaction {

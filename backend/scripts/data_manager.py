@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import engine, Base, SessionLocal
 from app.models.user import User
 from app.models.store import Store
-from app.models.inventory import Inventory, Transaction
+from app.models.inventory import Inventory, Transaction, OrderStatus, StockOrder, StockOrderItem
 from app.models.log import OperationLog
 from app.services.user import pwd_context
 import logging
@@ -15,6 +15,9 @@ import random
 from decimal import Decimal
 import argparse
 from app.models.company import Company, CompanyType
+from app.core.utils import generate_order_no
+from app.models.finance import OtherTransaction, TransactionType
+from app.models.company import Payment
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
@@ -128,8 +131,9 @@ def create_inventory_and_transactions(
         logger.error("未找到供应商或客户数据")
         return
 
+    # 先创建所有商品
+    inventory_list = []
     for i, product in enumerate(products):
-        # 创建商品
         barcode = f"8900{str(i+1).zfill(6)}"
         inventory = Inventory(
             barcode=barcode,
@@ -142,58 +146,184 @@ def create_inventory_and_transactions(
         )
         db.add(inventory)
         db.flush()
+        inventory_list.append((inventory, product))
 
-        # 生成交易记录
-        for transaction_time in time_points:
-            # 入库记录
-            if random.random() < 0.2:  # 20%概率进货
-                supplier = random.choice(suppliers)  # 随机选择供应商
-                quantity = random.randint(10, 20)
+    # 添加计数器用于确保订单号唯一
+    order_counter = 1
+
+    # 生成交易记录
+    for transaction_time in time_points:
+        # 入库单 (15%概率，降低入库频率)
+        if random.random() < 0.15:
+            supplier = random.choice(suppliers)
+            selected_items = random.sample(inventory_list, random.randint(2, 4))
+            total_amount = Decimal('0')
+            
+            # 调整状态概率：80% 确认, 15% 待处理, 5% 取消
+            status_choice = random.choices(
+                [OrderStatus.CONFIRMED, OrderStatus.DRAFT, OrderStatus.CANCELLED],
+                weights=[0.8, 0.15, 0.05]
+            )[0]
+            
+            # 创建入库单
+            order_no = f"I{transaction_time.strftime('%Y%m%d')}{str(order_counter).zfill(4)}"
+            order_counter += 1
+            
+            stock_in_order = StockOrder(
+                order_no=order_no,
+                type="in",
+                company_id=supplier.id,
+                total_amount=Decimal('0'),
+                operator_id=operator_id,
+                store_id=store_id,
+                status=status_choice,
+                notes="演示数据",
+                created_at=transaction_time
+            )
+            db.add(stock_in_order)
+            db.flush()
+            
+            # 添加入库单明细
+            for inventory, product in selected_items:
+                # 减少入库数量
+                quantity = random.randint(5, 15)
                 price = round(random.uniform(*product["price_range"]), 2)
-                transaction = Transaction(
-                    barcode=barcode,
+                item_total = Decimal(str(quantity * price))
+                total_amount += item_total
+                
+                # 创建入库单明细
+                stock_in_item = StockOrderItem(
+                    order_id=stock_in_order.id,
                     inventory_id=inventory.id,
-                    type="in",
+                    barcode=inventory.barcode,
                     quantity=quantity,
                     price=Decimal(str(price)),
-                    total=Decimal(str(quantity * price)),
-                    timestamp=transaction_time,
-                    store_id=store_id,
-                    operator_id=operator_id,
-                    company_id=supplier.id
+                    total=item_total
                 )
-                db.add(transaction)
-                inventory.stock += quantity
-
-            # 出库记录
-            if random.random() < 0.3 and inventory.stock > 0:
-                customer = random.choice(customers)  # 随机选择客户
-                max_quantity = min(inventory.stock, 15)
-                if max_quantity > 0:
-                    quantity = random.randint(1, max_quantity)
-                    price = round(random.uniform(*product["price_range"]) * 1.2, 2)
+                db.add(stock_in_item)
+                
+                # 只有确认状态的订单才创建交易记录和更新库存
+                if status_choice == OrderStatus.CONFIRMED:
+                    # 创建入库交易记录
                     transaction = Transaction(
-                        barcode=barcode,
                         inventory_id=inventory.id,
-                        type="out",
+                        barcode=inventory.barcode,
+                        type="in",
                         quantity=quantity,
                         price=Decimal(str(price)),
-                        total=Decimal(str(quantity * price)),
-                        timestamp=transaction_time,
+                        total=item_total,
                         store_id=store_id,
                         operator_id=operator_id,
-                        company_id=customer.id
+                        company_id=supplier.id,
+                        timestamp=transaction_time,
+                        notes=f"入库单 {order_no}"
                     )
                     db.add(transaction)
-                    inventory.stock -= quantity
+                    
+                    # 更新库存
+                    inventory.stock += quantity
+            
+            # 更新订单总金额
+            stock_in_order.total_amount = total_amount
+            db.flush()
+
+        # 出库单 (35%概率，增加出库频率)
+        if random.random() < 0.35:
+            customer = random.choice(customers)
+            # 只选择库存充足的商品
+            available_items = [(inv, prod) for inv, prod in inventory_list if inv.stock >= 5]
+            if len(available_items) >= 1:
+                selected_items = random.sample(
+                    available_items,
+                    min(random.randint(2, 5), len(available_items))
+                )
+                total_amount = Decimal('0')
+                
+                # 生成订单状态
+                # 70% 确认, 20% 待处理, 10% 取消
+                status_choice = random.choices(
+                    [OrderStatus.CONFIRMED, OrderStatus.DRAFT, OrderStatus.CANCELLED],
+                    weights=[0.7, 0.2, 0.1]
+                )[0]
+                
+                # 创建出库单
+                order_no = f"O{transaction_time.strftime('%Y%m%d')}{str(order_counter).zfill(4)}"
+                order_counter += 1
+                
+                stock_out_order = StockOrder(
+                    order_no=order_no,
+                    type="out",
+                    company_id=customer.id,
+                    total_amount=Decimal('0'),
+                    operator_id=operator_id,
+                    store_id=store_id,
+                    status=status_choice,
+                    notes="演示数据",
+                    created_at=transaction_time
+                )
+                db.add(stock_out_order)
+                db.flush()
+                
+                # 添加出库单明细
+                for inventory, product in selected_items:
+                    max_quantity = min(inventory.stock, 15)
+                    if max_quantity > 0:
+                        quantity = random.randint(1, max_quantity)
+                        price = round(random.uniform(*product["price_range"]) * 1.2, 2)
+                        item_total = Decimal(str(quantity * price))
+                        total_amount += item_total
+                        
+                        # 创建出库单明细
+                        stock_out_item = StockOrderItem(
+                            order_id=stock_out_order.id,
+                            inventory_id=inventory.id,
+                            barcode=inventory.barcode,
+                            quantity=quantity,
+                            price=Decimal(str(price)),
+                            total=item_total
+                        )
+                        db.add(stock_out_item)
+                        
+                        # 只有确认状态的订单才创建交易记录和更新库存
+                        if status_choice == OrderStatus.CONFIRMED:
+                            # 创建出库交易记录
+                            transaction = Transaction(
+                                inventory_id=inventory.id,
+                                barcode=inventory.barcode,
+                                type="out",
+                                quantity=quantity,
+                                price=Decimal(str(price)),
+                                total=item_total,
+                                store_id=store_id,
+                                operator_id=operator_id,
+                                company_id=customer.id,
+                                timestamp=transaction_time,
+                                notes=f"出库单 {order_no}"
+                            )
+                            db.add(transaction)
+                            
+                            # 更新库存
+                            inventory.stock -= quantity
+                
+                # 更新订单总金额
+                stock_out_order.total_amount = total_amount
+                db.flush()
 
         db.flush()
+
+    db.commit()
 
 def clear_store_data(db: Session, store_id: int):
     """清除店铺所有数据"""
     logger.info("开始清除数据...")
     
     # 按顺序删除以避免外键约束问题
+    db.query(Payment).filter(Payment.store_id == store_id).delete()
+    db.query(OtherTransaction).filter(OtherTransaction.store_id == store_id).delete()
+    db.query(StockOrderItem).join(StockOrder).filter(
+        StockOrder.store_id == store_id
+    ).delete(synchronize_session=False)
+    db.query(StockOrder).filter(StockOrder.store_id == store_id).delete()
     db.query(Transaction).filter(Transaction.store_id == store_id).delete()
     db.query(OperationLog).filter(OperationLog.store_id == store_id).delete()
     db.query(Inventory).filter(Inventory.store_id == store_id).delete()
@@ -203,6 +333,180 @@ def clear_store_data(db: Session, store_id: int):
     ).delete()
     
     logger.info("数据清除完成")
+
+def generate_other_transactions(
+    db: Session,
+    store_id: int,
+    operator_id: int,
+    start_date: datetime,
+    end_date: datetime
+):
+    """生成其他收支记录"""
+    # 定义收支类型和对应的金额范围
+    expense_types = [
+        ("房租", (3000, 5000)),
+        ("水电费", (500, 1000)),
+        ("工资", (4000, 6000)),
+        ("装修费", (10000, 20000)),
+        ("办公用品", (200, 500)),
+        ("清洁费", (300, 600))
+    ]
+    
+    income_types = [
+        ("货款减免", (500, 2000)),
+        ("废品回收", (100, 300)),
+        ("促销收入", (1000, 3000))
+    ]
+    
+    current_date = start_date
+    while current_date <= end_date:
+        # 每月房租
+        if current_date.day == 1:
+            amount = random.uniform(*expense_types[0][1])
+            transaction = OtherTransaction(
+                store_id=store_id,
+                type=TransactionType.EXPENSE,
+                amount=Decimal(str(round(amount, 2))),
+                operator_id=operator_id,
+                transaction_date=current_date.date(),
+                notes=f"{current_date.strftime('%Y年%m月')}房租",
+                created_at=current_date
+            )
+            db.add(transaction)
+        
+        # 每月工资
+        if current_date.day == 5:
+            amount = random.uniform(*expense_types[2][1])
+            transaction = OtherTransaction(
+                store_id=store_id,
+                type=TransactionType.EXPENSE,
+                amount=Decimal(str(round(amount, 2))),
+                operator_id=operator_id,
+                transaction_date=current_date.date(),
+                notes=f"{current_date.strftime('%Y年%m月')}工资支出",
+                created_at=current_date
+            )
+            db.add(transaction)
+        
+        # 随机生成其他收支
+        if random.random() < 0.1:  # 10%概率生成收支记录
+            if random.random() < 0.6:  # 60%概率是支出
+                expense_type = random.choice(expense_types[1:])  # 排除房租
+                amount = random.uniform(*expense_type[1])
+                transaction = OtherTransaction(
+                    store_id=store_id,
+                    type=TransactionType.EXPENSE,
+                    amount=Decimal(str(round(amount, 2))),
+                    operator_id=operator_id,
+                    transaction_date=current_date.date(),
+                    notes=expense_type[0],
+                    created_at=current_date
+                )
+                db.add(transaction)
+            else:  # 40%概率是收入
+                income_type = random.choice(income_types)
+                amount = random.uniform(*income_type[1])
+                transaction = OtherTransaction(
+                    store_id=store_id,
+                    type=TransactionType.INCOME,
+                    amount=Decimal(str(round(amount, 2))),
+                    operator_id=operator_id,
+                    transaction_date=current_date.date(),
+                    notes=income_type[0],
+                    created_at=current_date
+                )
+                db.add(transaction)
+        
+        current_date += timedelta(days=1)
+    
+    db.flush()
+
+def generate_payments(
+    db: Session,
+    store_id: int,
+    operator_id: int,
+    start_date: datetime,
+    end_date: datetime
+):
+    """生成收付款记录"""
+    # 获取所有供应商和客户
+    companies = db.query(Company).filter(
+        Company.store_id == store_id
+    ).all()
+    
+    if not companies:
+        return
+    
+    # 获取每个公司的应收应付总额
+    company_balances = {}
+    for company in companies:
+        # 计算出入库单总额
+        orders = db.query(StockOrder).filter(
+            StockOrder.company_id == company.id,
+            StockOrder.status == OrderStatus.CONFIRMED
+        ).all()
+        
+        balance = Decimal('0')
+        for order in orders:
+            if order.type == 'in':
+                balance -= order.total_amount  # 应付增加
+            else:
+                balance += order.total_amount  # 应收增加
+        company_balances[company.id] = balance
+    
+    current_date = start_date
+    while current_date <= end_date:
+        # 每天50%概率生成收付款记录(增加频率)
+        if random.random() < 0.5:
+            company = random.choice(companies)
+            balance = company_balances.get(company.id, Decimal('0'))
+            
+            # 根据公司类型和应收应付情况决定收付款
+            if company.type == CompanyType.SUPPLIER:
+                if balance < Decimal('0'):  # 有应付款
+                    payment_type = "pay"
+                    # 付款金额为应付款的10%-30%
+                    max_amount = min(abs(balance), Decimal('10000'))
+                    amount = Decimal(str(round(
+                        random.uniform(
+                            float(max_amount * Decimal('0.1')),
+                            float(max_amount * Decimal('0.3'))
+                        ), 2
+                    )))
+                    company_balances[company.id] += amount
+                else:
+                    continue  # 没有应付款就跳过
+                    
+            else:  # 客户
+                if balance > Decimal('0'):  # 有应收款
+                    payment_type = "receive"
+                    # 收款金额为应收款的20%-40%
+                    max_amount = min(balance, Decimal('10000'))
+                    amount = Decimal(str(round(
+                        random.uniform(
+                            float(max_amount * Decimal('0.2')),
+                            float(max_amount * Decimal('0.4'))
+                        ), 2
+                    )))
+                    company_balances[company.id] -= amount
+                else:
+                    continue  # 没有应收款就跳过
+            
+            # 创建收付款记录
+            payment = Payment(
+                company_id=company.id,
+                amount=amount,
+                type=payment_type,
+                notes=f"{'收款' if payment_type == 'receive' else '付款'}结算",
+                operator_id=operator_id,
+                store_id=store_id,
+                created_at=current_date
+            )
+            db.add(payment)
+        
+        current_date += timedelta(days=1)
+    
+    db.flush()
 
 def initialize_demo_data(db: Session = None):
     """初始化演示数据"""
@@ -214,23 +518,18 @@ def initialize_demo_data(db: Session = None):
         
         # 生成基础数据
         products = generate_demo_products()
-        time_points = generate_time_points()
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=90)  # 改为90天
+        time_points = generate_time_points(90)  # 改为90天
         
         # 添加演示公司
         demo_companies = [
+            # 供应商
             {
-                "name": "新新超市",
-                "type": CompanyType.CUSTOMER,
-                "contact": "张经理",
-                "phone": "13800138000",
-                "address": "市中心路123号",
-                "is_active": True
-            },
-            {
-                "name": "顺丰物流",
+                "name": "鑫鑫贸易",
                 "type": CompanyType.SUPPLIER,
                 "contact": "李经理",
-                "phone": "13900139000",
+                "phone": "13900139001",
                 "address": "开发区456号",
                 "is_active": True
             },
@@ -238,35 +537,75 @@ def initialize_demo_data(db: Session = None):
                 "name": "双星贸易",
                 "type": CompanyType.SUPPLIER,
                 "contact": "王总",
-                "phone": "13700137000",
+                "phone": "13700137001",
                 "address": "商贸城789号",
+                "is_active": True
+            },
+            {
+                "name": "胜利茶行",
+                "type": CompanyType.SUPPLIER,
+                "contact": "刘经理",
+                "phone": "13900139002",
+                "address": "胜利路40号",
+                "is_active": True
+            },
+            {
+                "name": "华茗茶叶",
+                "type": CompanyType.SUPPLIER,
+                "contact": "陈总",
+                "phone": "13800138001",
+                "address": "茶叶市场A12号",
+                "is_active": True
+            },
+            {
+                "name": "瑞丰贸易",
+                "type": CompanyType.SUPPLIER,
+                "contact": "郑经理",
+                "phone": "13700137002",
+                "address": "工业园区B5号",
+                "is_active": True
+            },
+            # 客户
+            {
+                "name": "新新超市",
+                "type": CompanyType.CUSTOMER,
+                "contact": "张经理",
+                "phone": "13800138002",
+                "address": "市中心路123号",
                 "is_active": True
             },
             {
                 "name": "友谊超市",
                 "type": CompanyType.CUSTOMER,
                 "contact": "赵店长",
-                "phone": "13800138000",
+                "phone": "13800138003",
                 "address": "建设路54号",
-                "is_active": True
-            },
-            {
-                "name": "德邦物流",
-                "type": CompanyType.SUPPLIER,
-                "contact": "刘主任",
-                "phone": "13900139000",
-                "address": "胜利路40号",
                 "is_active": True
             },
             {
                 "name": "红星幼儿园",
                 "type": CompanyType.CUSTOMER,
                 "contact": "田园长",
-                "phone": "13700137000",
+                "phone": "13700137003",
                 "address": "幸福街12号",
                 "is_active": True
+            },
+            {
+                "name": "阳光茶庄",
+                "type": CompanyType.CUSTOMER,
+                "contact": "孙老板",
+                "phone": "13900139003",
+                "address": "茶城C区15号",
+                "is_active": True
+            },
+            {
+                "name": "品茗会所",
+                "type": CompanyType.CUSTOMER,
+                "contact": "周经理",
+                "phone": "13800138004",
+                "address": "和平路88号",
+                "is_active": True
             }
-            
         ]
 
         # 先创建公司
@@ -287,8 +626,14 @@ def initialize_demo_data(db: Session = None):
         # 提交公司创建
         db.commit()
         
-        # 再创建商品和交易记录
+        # 生成商品和交易记录
         create_inventory_and_transactions(db, store.id, user.id, products, time_points)
+        
+        # 生成其他收支记录
+        generate_other_transactions(db, store.id, user.id, start_date, end_date)
+        
+        # 生成收付款记录
+        generate_payments(db, store.id, user.id, start_date, end_date)
         
         db.commit()
         logger.info("演示数据初始化成功！")

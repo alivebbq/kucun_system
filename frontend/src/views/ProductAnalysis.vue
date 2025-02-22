@@ -156,8 +156,26 @@ const searchBarcode = ref('');
 const dateRange = ref<[Date, Date] | null>(null);
 const currentProduct = ref<Inventory | null>(null);
 
-// 添加日期快捷选项
+// 修改日期快捷选项
 const dateShortcuts = [
+    {
+        text: '最近一周',
+        value: () => {
+            const end = new Date();
+            const start = new Date();
+            start.setTime(start.getTime() - 3600 * 1000 * 24 * 7);
+            return [start, end];
+        },
+    },
+    {
+        text: '本月',
+        value: () => {
+            const end = new Date();
+            const start = new Date();
+            start.setDate(1); // 设置为本月第一天
+            return [start, end];
+        },
+    },
     {
         text: '最近一月',
         value: () => {
@@ -168,7 +186,7 @@ const dateShortcuts = [
         },
     },
     {
-        text: '最近一季度',
+        text: '最近三月',
         value: () => {
             const end = new Date();
             const start = new Date();

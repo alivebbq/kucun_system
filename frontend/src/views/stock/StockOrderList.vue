@@ -206,36 +206,63 @@ const draftCount = ref(0)
 // 添加日期范围
 const dateRange = ref<[string, string] | null>(null);
 
-// 添加日期快捷选项
+// 修改日期快捷选项
 const dateShortcuts = [
   {
     text: '最近一周',
     value: () => {
-      const end = new Date();
-      const start = new Date();
-      start.setTime(start.getTime() - 3600 * 1000 * 24 * 7);
-      return [start, end];
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 7)
+      return [start, end]
     },
   },
   {
-    text: '最近一个月',
+    text: '本月',
     value: () => {
-      const end = new Date();
-      const start = new Date();
-      start.setTime(start.getTime() - 3600 * 1000 * 24 * 30);
-      return [start, end];
+      const end = new Date()
+      const start = new Date()
+      start.setDate(1) // 设置为本月第一天
+      return [start, end]
     },
   },
   {
-    text: '最近三个月',
+    text: '最近一月',
     value: () => {
-      const end = new Date();
-      const start = new Date();
-      start.setTime(start.getTime() - 3600 * 1000 * 24 * 90);
-      return [start, end];
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 30)
+      return [start, end]
+    },
+  },
+  {
+    text: '最近三月',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 90)
+      return [start, end]
+    },
+  },
+  {
+    text: '最近半年',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 180)
+      return [start, end]
+    },
+  },
+  {
+    text: '最近一年',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 365)
+      return [start, end]
     },
   }
-];
+]
 
 // 使用防抖函数优化搜索
 const debounce = (fn: Function, delay: number) => {

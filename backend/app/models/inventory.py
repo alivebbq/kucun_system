@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, CheckConstraint, Boolean, UniqueConstraint, Index, Enum
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, CheckConstraint, Boolean, UniqueConstraint, Index, Enum, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.session import Base
@@ -73,6 +73,7 @@ class Inventory(Base):
     stock = Column(Integer, default=0)
     warning_stock = Column(Integer, default=10)  # 警戒库存
     is_active = Column(Boolean, default=True)  # 添加是否启用字段
+    remark = Column(Text, nullable=True)  # 添加备注字段
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)

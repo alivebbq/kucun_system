@@ -54,6 +54,18 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="remark" label="备注" min-width="150">
+          <template #default="{ row }">
+            <el-tooltip 
+              v-if="row.remark" 
+              :content="row.remark" 
+              placement="top" 
+              :hide-after="2000"
+            >
+              <span class="remark-text">{{ row.remark }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button-group>
@@ -115,6 +127,14 @@
         <el-form-item label="警戒库存" prop="warning_stock">
           <el-input-number v-model="form.warning_stock" :min="0" :precision="0" style="width: 100%" />
         </el-form-item>
+        <el-form-item label="备注" prop="remark">
+          <el-input 
+            v-model="form.remark" 
+            type="textarea" 
+            :rows="3" 
+            placeholder="请输入商品备注信息（选填）"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
@@ -158,7 +178,8 @@ const form = ref({
   barcode: '',
   name: '',
   unit: '',
-  warning_stock: 10
+  warning_stock: 10,
+  remark: ''
 });
 
 const rules: FormRules = {
@@ -236,7 +257,8 @@ const handleAdd = () => {
     barcode: '',
     name: '',
     unit: '',
-    warning_stock: 10
+    warning_stock: 10,
+    remark: ''
   };
   formRef.value?.clearValidate();  // 清除表单验证状态
   dialogVisible.value = true;
@@ -249,7 +271,8 @@ const handleEdit = (row: Inventory) => {
     barcode: row.barcode,
     name: row.name,
     unit: row.unit,
-    warning_stock: row.warning_stock
+    warning_stock: row.warning_stock,
+    remark: row.remark || ''
   };
   formRef.value?.clearValidate();
   dialogVisible.value = true;
@@ -287,7 +310,8 @@ const handleDialogClose = () => {
     barcode: '',
     name: '',
     unit: '',
-    warning_stock: 10
+    warning_stock: 10,
+    remark: ''
   };
 };
 
@@ -380,5 +404,13 @@ onUnmounted(() => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+.remark-text {
+  display: inline-block;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

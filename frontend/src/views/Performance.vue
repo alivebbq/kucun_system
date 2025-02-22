@@ -188,9 +188,7 @@ const stats = ref<PerformanceStats>({
   }
 });
 
-// 移除默认日期范围
-const dateRange = ref<[Date, Date] | null>(null);
-
+const dateRange = ref<[string, string] | null>(null);
 // 排序方式
 const profitSortBy = ref<'profit' | 'rate'>('profit');
 
@@ -220,21 +218,7 @@ const formatNumber = (num: number) => {
   });
 };
 
-// 格式化日期范围显示
-const formatDateRange = (range: [Date, Date] | null) => {
-  if (!range) return '';
-  const [start, end] = range;
-  const formatDate = (date: Date | number) => {
-    const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  return `${formatDate(start)} 至 ${formatDate(end)}`;
-};
-
-// 添加日期快捷选项
+// 修改日期快捷选项
 const dateShortcuts = [
   {
     text: '最近一周',
@@ -297,15 +281,10 @@ const loadStats = async () => {
   
   try {
     const [start, end] = dateRange.value;
-    
-    const formatForApi = (date: Date | number) => {
-      const d = new Date(date);
-      return d.toISOString().split('T')[0];
-    };
-    
+
     const response = await getPerformanceStats({
-      start_date: `${formatForApi(start)}T00:00:00`,
-      end_date: `${formatForApi(end)}T23:59:59`
+      start_date: start,
+      end_date: end
     });
     
     stats.value = response;
@@ -359,8 +338,17 @@ const handleSalesPageChange = (page: number) => {
   salesCurrentPage.value = page;
 };
 
+// 修改 onMounted 钩子，在组件挂载时加载数据
 onMounted(() => {
-  // 不再自动加载数据
+  const start = new Date();
+  start.setTime(start.getTime() - 3600 * 1000 * 24 * 30);  // 30天前
+  const end = new Date();
+  
+  dateRange.value = [
+    start.toISOString().split('T')[0],
+    end.toISOString().split('T')[0]
+  ];
+  loadStats(); // 加载最近30天的数据
 });
 </script>
 
