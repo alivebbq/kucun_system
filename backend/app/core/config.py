@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     MAX_RETRIES: int = 3
     RETRY_DELAY: float = 0.1
     
+    # CORS配置
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:5173",  # 本地开发环境
+        "http://118.89.95.7:8000"  # 生产环境 IP + 端口
+    ]
+    
     class Config:
         env_file = ".env"
         case_sensitive = True  # 区分大小写

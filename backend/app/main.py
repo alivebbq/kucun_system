@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 import signal
 import sys
 import logging
+from app.core.config import settings
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
@@ -46,9 +47,9 @@ async def lifespan(app: FastAPI):
 
 # 创建应用实例时添加 lifespan
 app = FastAPI(
-    title="库存管理系统",
+    title=settings.PROJECT_NAME,
     description="库存管理系统API文档",
-    version="1.0.0",
+    version=settings.VERSION,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -63,10 +64,11 @@ async def log_requests(request: Request, call_next):
 # 然后配置 CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # 添加一个简单的根路由

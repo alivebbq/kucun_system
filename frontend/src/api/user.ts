@@ -31,9 +31,7 @@ export const login = (username: string, password: string) => {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Accept': 'application/json'
         },
-        transformRequest: [(data) => data],
-        retry: 3,
-        retryDelay: 1000
+        transformRequest: [(data) => data]
     });
 };
 
